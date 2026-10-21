@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// 由 build.py 从 raw_top.c.in 生成，不要手改。
+// 只负责模块加载/卸载，具体注册什么由 C++ 层的 lcpp_module_init/exit 决定。
+
+#include <linux/module.h>
+
+extern int lcpp_module_init(void);
+extern void lcpp_module_exit(void);
+extern void lcpp_run_init_array(void);
+extern void lcpp_run_fini_array(void);
+
+// module_init 的 alias 要求目标在本编译单元有定义，不能直接 alias 到 extern 符号
+static int __init lcpp_entry_init(void)
+{
+	lcpp_run_init_array();
+	int ret = lcpp_module_init();
+	if (ret != 0)
+		lcpp_run_fini_array();
+	return ret;
+}
+
+static void __exit lcpp_entry_exit(void)
+{
+	lcpp_module_exit();
+	lcpp_run_fini_array();
+}
+
+module_init(lcpp_entry_init);
+module_exit(lcpp_entry_exit);
+
+MODULE_LICENSE("@@LICENSE@@");
+MODULE_DESCRIPTION("@@DESCRIPTION@@");

@@ -1,0 +1,13 @@
+[module]
+name = "two_devices"
+description = "Two misc devices in one C++ module"
+license = "GPL"
+
+[device]
+name = "two_a"
+mode = "0666"
+
+[bindings]
+roots = ["file", "file_operations", "kiocb", "iov_iter", "miscdevice"]
+extern = ["misc_register", "misc_deregister", "compat_ptr_ioctl"]
+thunk = ["copy_to_iter"]

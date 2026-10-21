@@ -1,0 +1,17 @@
+[module]
+name = "ioctl_misc"
+description = "C++ misc device with ioctl"
+license = "GPL"
+
+[device]
+name = "ioctl_misc"
+mode = "0666"
+
+[bindings]
+roots = ["file", "file_operations", "kiocb", "iov_iter", "miscdevice"]
+extern = ["misc_register", "misc_deregister", "compat_ptr_ioctl"]
+thunk = ["copy_to_iter", "copy_from_iter", "copy_from_user", "copy_to_user"]
+# 无参对象宏直接导出；_IOC_* 的位偏移也来自内核头，不写死
+macro = ["MAY_READ", "_IOC_NRSHIFT", "_IOC_TYPESHIFT", "_IOC_SIZESHIFT",
+         "_IOC_DIRSHIFT", "_IOC_WRITE", "_IOC_READ"]
+headers = ["linux/ioctl.h"]

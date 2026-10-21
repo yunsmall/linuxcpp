@@ -1,0 +1,16 @@
+[module]
+name = "hello_cpp"
+description = "Minimal C++ kernel module"
+license = "GPL"
+
+[device]
+name = "hello_cpp"
+mode = "0666"
+
+[bindings]
+# C++ 层需要完整定义（访问字段）的内核类型
+roots = ["file", "file_operations", "kiocb", "iov_iter", "miscdevice"]
+# 内核导出函数，自动生成 extern "C" 声明
+extern = ["misc_register", "misc_deregister", "compat_ptr_ioctl"]
+# static inline 函数，自动生成 C thunk
+thunk = ["copy_to_iter", "copy_from_iter", "copy_from_user", "copy_to_user"]

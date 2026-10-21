@@ -1,0 +1,11 @@
+[module]
+name = "kthread_demo"
+description = "C++ kernel thread demo"
+license = "GPL"
+
+[bindings]
+roots = ["file"]
+extern = ["kthread_create_on_node", "kthread_stop", "wake_up_process", "msleep",
+          "kthread_should_stop"]
+thunk = []
+headers = ["linux/kthread.h", "linux/delay.h"]

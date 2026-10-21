@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 本地审查提示词和报告，不随项目发布
+REVIEW_PROMPT.md
+CPP_REVIEW_PROMPT.md
+PERFORMANCE_REVIEW.md
+WRAPPER_PROMPT.md
+
+# 本地临时目录（复杂模块示例、构建中间产物）
+tmp/
+
+# 内核模块构建产物
+*.o
+*.ko
+*.mod
+*.mod.c
+.*.cmd
+*.d
+modules.order
+Module.symvers
+.module-common.o
+
+# build.py 生成的文件
+generated/
+entry_gen.c
+layout_check.c
+thunks_gen.c
+linuxcpp_thunks.c
+lcpp_ctors.c
+lcpp_ctors_start.c
+lcpp_ctors_end.c
+Makefile
+Kbuild
+
+# 上面几条是模块目录里的生成副本；核心库自己的 C 源文件必须保留
+!linuxcpp/src/linuxcpp_thunks.c
+!linuxcpp/src/lcpp_ctors.c
+!linuxcpp/src/lcpp_ctors_start.c
+!linuxcpp/src/lcpp_ctors_end.c
+
+# 编辑器/系统
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// 链接顺序上排在所有 .init_array/.fini_array 输入段之后。
+
+__asm__(
+	".section .init_array,\"aw\"\n"
+	".global __lcpp_init_array_end\n"
+	"__lcpp_init_array_end:\n"
+	".previous\n"
+	".section .fini_array,\"aw\"\n"
+	".global __lcpp_fini_array_end\n"
+	"__lcpp_fini_array_end:\n"
+	".previous\n");

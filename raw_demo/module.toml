@@ -1,0 +1,4 @@
+[module]
+name = "raw_demo"
+description = "raw module entry demo"
+license = "GPL"

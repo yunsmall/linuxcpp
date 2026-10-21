@@ -1,0 +1,9 @@
+/* 由 gen_libc_shim.py 生成，不要手改 */
+#pragma once
+#ifndef LCPP_PLACEMENT_NEW_DEFINED
+#define LCPP_PLACEMENT_NEW_DEFINED
+inline void *operator new(__SIZE_TYPE__, void *ptr) noexcept { return ptr; }
+inline void *operator new[](__SIZE_TYPE__, void *ptr) noexcept { return ptr; }
+inline void operator delete(void *, void *) noexcept {}
+inline void operator delete[](void *, void *) noexcept {}
+#endif
