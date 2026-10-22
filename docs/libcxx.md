@@ -32,7 +32,7 @@ libcxx_runtime        5.4M  2 std_demo,ctre_demo
 
 ## 已验证的标准库设施
 
-`examples/std_demo` 会在内核里实际运行下面这些设施：
+在 `6.18.33.1-microsoft-standard-WSL2` 上，`examples/std_demo` 会实际运行下面这些设施：
 
 - 容器：`vector`、`map`、`set`、`unordered_map`、`unordered_set`、`list`、`deque`、`forward_list`
 - `optional`、`variant`、`any`、`span`、`string_view`

@@ -72,6 +72,16 @@ test_rust/
 - 内核开启 `CONFIG_MODULES`，最好有 `CONFIG_DEBUG_INFO_BTF`
 - 使用 libc++ 时（可选）：先执行 `python3 linuxcpp/libcxx_port/update_libcxx.py`，把 libc++ 20.1.8 下载到 `third_party/libcxx/`
 
+## 测试状态
+
+目前只在下面这个内核上实际构建、加载并运行过模块：
+
+- `6.18.33.1-microsoft-standard-WSL2`（x86_64，WSL2）
+
+其他内核版本和架构（ARM64、其他发行版内核等）**尚未验证**。绑定生成、
+`libc_port` 的 errno/类型头和 libc++ 运行库都按目标内核和编译器生成，换内核后
+需要重新构建并自行验证。
+
 ## 快速开始
 
 在仓库根目录创建一个新模块：

@@ -105,6 +105,17 @@ test_rust/
   `python3 linuxcpp/libcxx_port/update_libcxx.py` once to download libc++ 20.1.8
   into `third_party/libcxx/`
 
+## Tested kernels
+
+Modules have only been built, loaded, and exercised on:
+
+- `6.18.33.1-microsoft-standard-WSL2` (x86_64, WSL2)
+
+Other kernel versions and architectures (ARM64, other distribution kernels, and
+so on) are **untested**. Bindings, the generated `libc_port` errno/type headers,
+and the libc++ runtime are all produced for the target kernel and compiler, so
+switching kernels requires a rebuild and your own verification.
+
 ## Quick start
 
 Create a module next to the repository:
