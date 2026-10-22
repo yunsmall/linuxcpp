@@ -2,6 +2,26 @@
 
 `examples/` 下每个目录都是一个独立模块，在目录里 `make -j6` 即可构建。
 
+## 这些示例能干什么
+
+- **在内核里跑真正的 libc++ STL**：`std_demo` 直接用 `vector`、`map`、
+  `unordered_map`、`list`、`deque`、`optional`、`variant`、`any`、`shared_ptr`、
+  `function`、`chrono`、`ranges`、`charconv`，链接独立的 `libcxx_runtime.ko`，
+  不是项目自己写的玩具容器。
+- **让内核吐 JSON**：`sysinfo_json` 每次 `open` 采集一份实时快照，输出带缩进的
+  JSON，内存、CPU、负载、任务数、uptime 都能直接
+  `cat /dev/sysinfo_json | python3 -m json.tool`。
+- **让内核原地格式化用户文件**：`json_format` 接收用户空间传来的文件 fd，
+  用 RapidJSON SAX 解析后按两格缩进重写回同一个文件；语法错误返回 `EINVAL`，
+  超大文件返回 `EFBIG`。它显式用 `kernel_fpu_begin/end` 打开 FPU，并用固定
+  分配器保证 FPU 区间内不会睡眠。
+- **零动态分配的固定容量 KV**：`etl_kv` 用 ETL 容器实现内存键值存储，
+  `echo` 写命令、`cat` 读结果，适合内存和延迟敏感的场景。
+- **不用 libc++ 也能用 C 库子集**：`libc_demo` 直接调用内核里的
+  `malloc/qsort/strtol/snprintf/printf/time`。
+- **常规内核玩法**：`hello_misc`、`ioctl_misc`、`two_devices`、`kthread_demo`
+  分别覆盖 misc 设备、ioctl、多设备、内核线程。
+
 ## libc++ 源码
 
 `std_demo`、`sysinfo_json`、`json_format` 都依赖 libc++，而 libc++ 不随仓库分发。
