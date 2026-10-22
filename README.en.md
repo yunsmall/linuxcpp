@@ -70,7 +70,7 @@ they need a C thunk or a small `constexpr` reimplementation.
 ## Repository layout
 
 ```text
-test_rust/
+repository root/
 ├── Makefile                    repository entry point (runtime/examples/test/clean)
 ├── linuxcpp/
 │   ├── include/                public C++ headers

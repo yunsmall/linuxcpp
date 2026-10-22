@@ -41,7 +41,7 @@ C++ 代码只 include `linuxcpp.hpp`（需要 `Device` 时再 include `device.hp
 ## 目录结构
 
 ```
-test_rust/
+仓库根目录/
 ├── Makefile                    仓库入口（runtime/examples/test/clean）
 ├── linuxcpp/
 │   ├── include/                公开 C++ 头（linuxcpp.hpp/device.hpp/std/wrappers/ctre_kernel.hpp）
