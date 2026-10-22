@@ -35,7 +35,8 @@ lcpp_ctors_end.c
 Makefile
 Kbuild
 
-# 上面几条是模块目录里的生成副本；核心库自己的 C 源文件必须保留
+# 上面几条是模块目录里的生成副本；核心库自己的源码和构建 driver 必须保留
+!linuxcpp/Makefile
 !linuxcpp/src/linuxcpp_thunks.c
 !linuxcpp/src/lcpp_ctors.c
 !linuxcpp/src/lcpp_ctors_start.c

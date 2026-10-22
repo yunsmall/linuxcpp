@@ -265,7 +265,7 @@ def generate_sources(module_dir, config):
         "",
     ]
     write_text_if_changed(module_dir / "Kbuild", "\n".join(kbuild))
-    return entry_obj
+    return entry_obj, user_c_objs + user_objs
 
 
 def generate_bindings(module_dir, config, kdir):
@@ -292,7 +292,7 @@ def generate_bindings(module_dir, config, kdir):
 
 def prepare(module_dir, config, kdir):
     """生成绑定、入口、Kbuild、Makefile 和 flags，不编译"""
-    entry_obj = generate_sources(module_dir, config)
+    entry_obj, user_objects = generate_sources(module_dir, config)
     generated = module_dir / "generated"
 
     # 绑定生成是 prepare 里最重的一步，输入没变就直接复用
@@ -314,7 +314,7 @@ def prepare(module_dir, config, kdir):
         write_cxxflags(module_dir, config, cxx, to_cxx_flags(raw_flags))
         flags_cache.write_text(flags_key + "\n", encoding="utf-8")
 
-    write_makefile(module_dir, config, kdir)
+    write_makefile(module_dir, config, kdir, entry_obj, user_objects)
     (generated / ".prepared").touch()
     # cxxflags 要比 stamp 新，避免 make 每次都尝试重建被 include 的文件
     cxxflags_path.touch()
@@ -353,8 +353,15 @@ def main():
 
     jobs = args.jobs if args.jobs is not None else min(6, os.cpu_count() or 1)
 
-    # 第一次构建先生成 Makefile；之后直接交给 make 做依赖检测
-    if args.prepare_only or not (module_dir / "Makefile").exists():
+    # 第一次构建先生成 Makefile；旧版自动生成、直接 include 公共文件的 Makefile
+    # 迁移到 driver 模式。手写 Makefile 不碰，由它自己的目标驱动。
+    makefile = module_dir / "Makefile"
+    needs_prepare = not makefile.exists()
+    if not needs_prepare:
+        text = makefile.read_text(encoding="utf-8")
+        needs_prepare = ("由 build.py 自动生成" in text
+                         and "LINUXCPP_BUILD" not in text)
+    if args.prepare_only or needs_prepare:
         prepare(module_dir, config, args.kdir)
     if args.prepare_only:
         print(f"准备完成，编译命令: make -C {module_dir} -j{jobs}")

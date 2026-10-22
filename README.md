@@ -26,6 +26,7 @@ test_rust/
 ├── linuxcpp/
 │   ├── include/                公开 C++ 头（linuxcpp.hpp/module.hpp/device.hpp/std/wrappers）
 │   ├── src/                    C/C++ 实现（linuxcpp.cpp/device.cpp/linuxcpp_thunks.c）
+│   ├── Makefile                模块构建 driver（make -C linuxcpp M=模块目录）
 │   ├── python/                 构建和绑定生成脚本
 │   │   ├── build.py            模块构建器
 │   │   ├── gen_bindings.py     绑定生成器 CLI
@@ -72,10 +73,49 @@ cat /dev/mymodule
 sudo rmmod mymodule
 ```
 
-第一次运行会生成 `Makefile`、`Kbuild`、`generated/` 和 `generated/cxxflags.mk`；之后在模块目录直接
-`make -j6` 即可。Makefile 用 `-MMD -MP` 跟踪头文件依赖，C++ 对象和 kbuild 的 C 对象都由 make 并行调度。
-只想生成构建文件、不立刻编译时用 `--prepare-only`，它会打印对应的 `make` 命令。
+第一次运行会生成 `Kbuild`、`generated/`、`generated/cxxflags.mk` 和一个入口 `Makefile`。
+入口 Makefile 里只有声明，直接 `make` 时转交给 `linuxcpp/Makefile` 这个 driver：
+
+```bash
+make -C ../linuxcpp M=$(pwd)
+```
+
+driver 设置 `LINUXCPP_BUILD=1` 后再 include 模块 Makefile，模块文件据此跳过自己的 `all`/`clean`，
+目标和规则的所有权始终在 driver 这边，不会出现两个 `clean` 互相覆盖。之后在模块目录直接
+`make -j6` 即可。C++ 对象用 `-MMD -MP` 跟踪头文件依赖，C++ 对象和 kbuild 的 C 对象都由 make
+并行调度。只想生成构建文件、不立刻编译时用 `--prepare-only`，它会打印对应的 `make` 命令。
 清理用 `make clean` 或 `python3 ../linuxcpp/python/build.py . --clean`。
+
+手写 Makefile 用同样的约定：直接 make 的分支里写自己的 `all`/`clean`，被 driver include 的分支里
+只放声明。`build.py` 不会覆盖没有自动生成标记的 `Makefile`：
+
+```make
+KDIR ?= /lib/modules/$(shell uname -r)/build
+LINUXCPP ?= /path/to/linuxcpp
+
+ifeq ($(LINUXCPP_BUILD),)
+all:
+	$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)"
+
+clean:
+	$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" clean
+	rm -f my_extra_file
+else
+MODULE_NAME := mymodule
+obj-m := $(MODULE_NAME).o
+$(MODULE_NAME)-y := driver.o extra.o
+ccflags-y += -DXXX
+cxxflags-y += -DYYY
+endif
+```
+
+`all`/`clean` 在 `ifeq ($(LINUXCPP_BUILD),)` 分支里，driver include 时看不到它们，所以可以在
+调用完公共 clean 后追加自己的清理命令。公共规则会把 `lcpp_ctors_start.o` 到 `lcpp_ctors_end.o`
+的核心对象按正确顺序插进 `$(MODULE_NAME)-y`，你追加的对象会参与最终链接。
+
+`obj-m` 和 kbuild/Rust 一样始终是最终模块的聚合对象（`.o`），不是源文件；C++ 源文件编译出的
+`.o` 放在 `$(MODULE_NAME)-y` 里。Rust 的单文件模块写 `obj-m := foo.o`，多文件模块写
+`foo-y := a.o b.o`，和这里的结构一致。
 
 ## module.toml
 
@@ -275,10 +315,13 @@ C++ 层不能使用异常、RTTI、STL。构建器已经加上 `-fno-exceptions 
 2. 调 `python/gen_bindings.py`（实现在 `python/linuxcppgen/`）：BTF → 结构体镜像、`layout_check.c`、`thunks_gen.c`
 3. 生成 `entry_gen.c`（只有 module_init/exit）和 `generated/config.hpp`，复制 `linuxcpp_thunks.c`
 4. 让 kbuild 编译一个 C 对象，抓出内核真实的 C 编译器 flags，写入 `generated/cxxflags.mk`
-5. 生成 `Makefile`，之后由 make 增量构建：C++ 对象用 `-MMD -MP` 跟踪头文件，kbuild 负责 C 对象和链接
+5. 生成模块目录的 kbuild 风格声明 `Makefile`；直接 make 时它转交给 `linuxcpp/Makefile`
+   driver（`M=` 指定模块目录）。driver 设置 `LINUXCPP_BUILD` 后 include 模块文件，只读取声明，
+   之后由 make 增量构建：C++ 对象用 `-MMD -MP` 跟踪头文件，kbuild 负责 C 对象和链接
 
-`Makefile` 只在 `module.toml`、生成器或核心库源码变化时重新运行 `--prepare-only`；改 `driver.cpp`
-只重编对应对象。`make -j` 的并行度由 make 自己控制，`build.py` 默认最多传 `-j6`，也可以手动指定。
+公共规则在 `linuxcpp/Makefile`；入口 Makefile 只在 `module.toml`、生成器或核心库源码变化时重新运行
+`--prepare-only`，改 `driver.cpp` 只重编对应对象。`make -j` 的并行度由 make 自己控制，`build.py`
+默认最多传 `-j6`，也可以手动指定。
 
 ## 内核升级
 
