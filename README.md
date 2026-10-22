@@ -32,7 +32,9 @@ test_rust/
 │   │   ├── gen_libc_shim.py    freestanding 标准头生成器
 │   │   ├── raw_top.c.in        C 入口模板（只有 module_init/exit）
 │   │   └── linuxcppgen/        生成器实现（btf/deps/types/decls/codegen）
-│   └── third_party/etl/        ETL 头与 shim
+│   └── third_party/
+│       ├── etl/                ETL git submodule（固定 20.49.0）
+│       └── etl_shim/           本项目的 freestanding 标准头
 ├── template/                   最小模块模板（misc 设备）
 ├── examples/                   可编译示例
 │   ├── hello_misc              最小 misc 设备
@@ -337,8 +339,11 @@ sudo rmmod hello_misc
 
 `examples/etl_kv` 演示第三方无 STL 库的接法：
 
+- ETL 是 git submodule，固定在 20.49.0；首次 clone 用
+  `git clone --recursive`，已有仓库用 `git submodule update --init --recursive`；
 - ETL 头在 `linuxcpp/third_party/etl/include`；
-- `linuxcpp/python/gen_libc_shim.py` 生成 `stdint.h`、`limits.h`、`new` 等 freestanding shim；
+- `linuxcpp/python/gen_libc_shim.py` 生成 `stdint.h`、`limits.h`、`new` 等 freestanding shim，
+  输出到 `linuxcpp/third_party/etl_shim`；
 - `module.toml` 的 `[build]` 用 `cxx_includes` 加头路径、`cxx_flags` 加
   `-DETL_NO_STL -DETL_NO_STD_MUTEX`；
 - 动态对象用 `linuxcpp::std::unique_ptr` 在 init 里创建、exit 里销毁。
