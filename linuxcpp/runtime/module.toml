@@ -1,0 +1,4 @@
+[module]
+name = "libcxx_runtime"
+description = "libc++ runtime for linuxcpp modules"
+license = "GPL"

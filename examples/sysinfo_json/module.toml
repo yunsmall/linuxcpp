@@ -1,0 +1,16 @@
+[module]
+name = "sysinfo_json"
+description = "kernel system statistics as JSON"
+license = "GPL"
+
+[device]
+name = "sysinfo_json"
+mode = "0444"
+
+[bindings]
+roots = ["file", "file_operations", "kiocb", "iov_iter", "miscdevice"]
+extern = ["misc_register", "misc_deregister", "compat_ptr_ioctl"]
+thunk = ["copy_to_iter", "copy_from_iter", "copy_from_user", "copy_to_user"]
+
+[build]
+cxx_includes = ["../../third_party/rapidjson/include"]

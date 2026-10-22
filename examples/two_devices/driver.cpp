@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 一个模块注册两个 misc 设备，演示 C 风格下没有单例限制。
 

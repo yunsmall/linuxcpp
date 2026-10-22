@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 模块入口和 THIS_MODULE 的 C++ 对应物。
 

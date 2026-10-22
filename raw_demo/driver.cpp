@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // raw 类型示例：C 侧只有 module_init/module_exit，初始化和清理都由 C++ 写。
 

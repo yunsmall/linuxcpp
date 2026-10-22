@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 包装内核 list_head 的侵入式双向链表。
 // 需要生成的 bindings 里有完整的 list_head 定义（module.toml 的 roots 加 "list_head"）。

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 内核线程示例：不注册设备，init/exit 里管理 kthread。
 

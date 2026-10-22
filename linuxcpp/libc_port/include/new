@@ -1,0 +1,6 @@
+// 非 libc++ 模式的 <new>：placement new、align_val_t 和 nothrow_t 由
+// placement_new.hpp 提供；libc++ 模式下 include 顺序会先命中 libc++ 自己的 <new>。
+
+#pragma once
+
+#include "placement_new.hpp"

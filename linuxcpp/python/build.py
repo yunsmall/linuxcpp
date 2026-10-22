@@ -24,10 +24,11 @@ try:
 except ImportError:
     sys.exit("需要 Python 3.11+（tomllib）")
 
-from flags import (cxx_compiler, is_compiler_token, probe_c_flags,
-                   to_cxx_flags, write_cxxflags)
+from flags import (cxx_compiler, is_compiler_token, pick_abi_flags,
+                   probe_c_flags, to_cxx_flags, write_cxxflags)
+from libc_symbols import IMPLEMENTED as LIBC_PORT_IMPLEMENTED
 from mkgen import write_makefile
-from paths import INCLUDE_DIR, PY_DIR, SRC_DIR
+from paths import INCLUDE_DIR, LIB_DIR, PY_DIR, SRC_DIR
 
 DEFAULTS = {
     "name": "linuxcpp_module",
@@ -58,6 +59,8 @@ def parse_args():
                         help="并行任务数，默认不超过 6")
     parser.add_argument("--clean", action="store_true",
                         help="删除 .o/.ko 等构建产物")
+    parser.add_argument("--init", action="store_true",
+                        help="在指定目录创建新的模块骨架")
     return parser.parse_args()
 
 
@@ -229,6 +232,8 @@ def generate_sources(module_dir, config):
                           "\n".join(config_hpp))
 
     copy_if_changed(SRC_DIR / "linuxcpp_thunks.c", module_dir / "linuxcpp_thunks.c")
+    copy_if_changed(LIB_DIR / "libc_port" / "src" / "libc_port.c",
+                    module_dir / "libc_port.c")
     for name in ("lcpp_ctors.c", "lcpp_ctors_start.c", "lcpp_ctors_end.c"):
         copy_if_changed(SRC_DIR / name, module_dir / name)
 
@@ -237,8 +242,8 @@ def generate_sources(module_dir, config):
     # 模块自己的 C thunk 也要编译；生成的文件已经单独加入，不能重复
     # entry_gen.c 即使当前用自定义入口也要排除：切换入口后旧文件还留在目录里
     generated_c = {"entry_gen.c", "layout_check.c", "thunks_gen.c",
-                   "linuxcpp_thunks.c", "lcpp_ctors.c", "lcpp_ctors_start.c",
-                   "lcpp_ctors_end.c", entry_path.name}
+                   "linuxcpp_thunks.c", "libc_port.c", "lcpp_ctors.c",
+                   "lcpp_ctors_start.c", "lcpp_ctors_end.c", entry_path.name}
     user_c_objs = [path.stem + ".o" for path in sorted(module_dir.glob("*.c"))
                    if path.name not in generated_c
                    and not path.name.endswith(".mod.c")]
@@ -248,24 +253,54 @@ def generate_sources(module_dir, config):
     if overlap:
         sys.exit(f"模块目录里有同名 .c 和 .cpp: {', '.join(sorted(overlap))}")
     reserved = {"layout_check", "entry_gen", "linuxcpp_thunks", "thunks_gen",
-                "linuxcpp", "device", "lcpp_ctors", "lcpp_ctors_start",
-                "lcpp_ctors_end", Path(entry_obj).stem}
+                "libc_port", "linuxcpp", "device", "lcpp_ctors",
+                "lcpp_ctors_start", "lcpp_ctors_end", Path(entry_obj).stem}
     conflict = reserved & (user_stems | user_c_stems)
     if conflict:
         sys.exit(f"模块目录里的源文件和生成对象重名: {', '.join(sorted(conflict))}")
     # 构造/析构数组的边界对象必须排在最前和最后
     objs = (["lcpp_ctors_start.o", "layout_check.o", entry_obj,
-             "linuxcpp_thunks.o", "thunks_gen.o", "lcpp_ctors.o",
+             "linuxcpp_thunks.o", "libc_port.o", "thunks_gen.o", "lcpp_ctors.o",
              "linuxcpp.o", "device.o"] + user_c_objs + user_objs
             + ["lcpp_ctors_end.o"])
     kbuild = [
         f"obj-m := {config['name']}.o",
         f"{config['name']}-y := {' '.join(objs)}",
-        f"ccflags-y += -I$(src)/generated -I{INCLUDE_DIR}",
+        f"ccflags-y += -I$(src)/generated/libc_port/include "
+        f"-I{LIB_DIR / 'libc_port' / 'include'} "
+        f"-I$(src)/generated -I{INCLUDE_DIR}",
         "",
     ]
     write_text_if_changed(module_dir / "Kbuild", "\n".join(kbuild))
     return entry_obj, user_c_objs + user_objs
+
+
+def generate_libc_headers(module_dir, kdir, cc, abi_flags):
+    """生成跟目标内核/架构有关的 errno 和类型头；静态头只放声明。
+    必须带上 kbuild 的 ABI 参数，否则 -fshort-wchar 下 wchar_t 宽度会生成错。"""
+    out = module_dir / "generated" / "libc_port" / "include"
+    cmd = [sys.executable, str(PY_DIR / "gen_libc_headers.py"),
+           "--kdir", str(Path(kdir).resolve()), "--out-dir", str(out),
+           "--cc", cc]
+    for flag in abi_flags:
+        # 等号形式，避免 argparse 把 -fshort-wchar 当成新选项
+        cmd.append(f"--cflags={flag}")
+    run(cmd, cwd=module_dir)
+
+
+def check_libc_collisions(kdir):
+    """内核将来导出同名 libc 符号时提醒；本地 weak 定义不会覆盖内核符号"""
+    from linuxcppgen.decls import kernel_exported_symbols
+
+    exported = kernel_exported_symbols(str(Path(kdir).resolve()))
+    if not exported:
+        return
+    collisions = sorted(LIBC_PORT_IMPLEMENTED & exported)
+    if collisions:
+        print("警告：内核已经导出 libc_port 中的符号："
+              + ", ".join(collisions))
+        print("      libc_port 使用 weak 局部定义，不会覆盖内核符号；"
+              "这些函数仍使用模块自己的实现。")
 
 
 def generate_bindings(module_dir, config, kdir):
@@ -303,14 +338,19 @@ def prepare(module_dir, config, kdir):
         generate_bindings(module_dir, config, kdir)
         binding_cache.write_text(binding_key + "\n", encoding="utf-8")
 
-    # probe_c_flags 会强制 kbuild 编译一次 C 入口，条件没变时也可以复用
+    # libc 头里的 wchar_t/指针宽度必须和 kbuild 实际参数一致，所以先抓 C 命令行。
+    # 探测会强制编译一次入口，但 prepare 本身有 make 的 stamp 缓存，不会频繁触发。
+    raw_flags = probe_c_flags(module_dir, kdir, entry_obj)
+    cc = raw_flags[0] if raw_flags else "gcc"
+    generate_libc_headers(module_dir, kdir, cc, pick_abi_flags(raw_flags))
+    check_libc_collisions(kdir)
+
     flags_key = cxxflags_cache_key(module_dir, config, kdir)
     flags_cache = generated / ".cxxflags.hash"
     cxxflags_path = generated / "cxxflags.mk"
     if (not cxxflags_path.exists() or not flags_cache.exists()
             or flags_cache.read_text(encoding="utf-8").strip() != flags_key):
-        raw_flags = probe_c_flags(module_dir, kdir, entry_obj)
-        cxx = cxx_compiler(config, raw_flags[0] if raw_flags else "gcc")
+        cxx = cxx_compiler(config, cc)
         write_cxxflags(module_dir, config, cxx, to_cxx_flags(raw_flags))
         flags_cache.write_text(flags_key + "\n", encoding="utf-8")
 
@@ -327,16 +367,102 @@ def clean_artifacts(module_dir):
     for pattern in patterns:
         for path in module_dir.glob(pattern):
             path.unlink()
-    for name in ("generated/.prepared", "generated/cxxflags.mk",
+    for name in ("libc_port.c", "generated/.prepared", "generated/cxxflags.mk",
                  "generated/.bindings.hash", "generated/.cxxflags.hash"):
         path = module_dir / name
         if path.exists():
             path.unlink()
+    libc_generated = module_dir / "generated" / "libc_port"
+    if libc_generated.exists():
+        shutil.rmtree(libc_generated)
+
+
+def init_module(module_dir):
+    """创建一个可直接构建的最小模块；只在空目录里写文件，避免覆盖用户代码"""
+    name = module_dir.name
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        sys.exit(f"目录名 {name!r} 不能作为模块名：必须是合法 C 标识符")
+    if name in {"linuxcpp", "device", "layout_check", "entry_gen"}:
+        sys.exit(f"模块名 {name} 会和核心库的生成对象重名，请换个目录名")
+
+    driver_template = LIB_DIR.parent / "template" / "driver.cpp"
+    if not driver_template.exists():
+        sys.exit(f"找不到模板驱动: {driver_template}")
+
+    module_dir.mkdir(parents=True, exist_ok=True)
+    targets = [module_dir / "module.toml",
+               module_dir / "Makefile",
+               module_dir / "driver.cpp"]
+    existing = [str(path) for path in targets if path.exists()]
+    if existing:
+        sys.exit("目录里已经有模块文件，拒绝覆盖：\n  " + "\n  ".join(existing))
+
+    rel_linuxcpp = os.path.relpath(LIB_DIR, module_dir).replace(os.sep, "/")
+    toml_text = f"""\
+[module]
+name = "{name}"
+description = "C++ kernel module built with linuxcpp"
+license = "GPL"
+
+[device]
+name = "{name}"
+mode = "0666"
+
+# 需要额外内核 API 时在这里追加；四项分类见 docs/bindings.md
+# [bindings]
+# roots = []
+# extern = []
+# thunk = []
+# headers = []
+"""
+    makefile_text = f"""\
+# 模块构建声明；具体规则由 linuxcpp/Makefile 提供。
+KDIR ?= /lib/modules/$(shell uname -r)/build
+PYTHON ?= python3
+LINUXCPP ?= {rel_linuxcpp}
+
+ifeq ($(LINUXCPP_BUILD),)
+all:
+\t$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" PYTHON="$(PYTHON)"
+
+clean:
+\t$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" PYTHON="$(PYTHON)" clean
+
+else
+MODULE_NAME := {name}
+obj-m := $(MODULE_NAME).o
+$(MODULE_NAME)-y := driver.o
+LCPP_ENTRY_OBJ := entry_gen.o
+
+# C 库子集独立于 libc++；不用 libc++ 也可以直接用 <string.h>/<stdlib.h> 等
+include $(LINUXCPP)/libc.mk
+
+# 需要共享 libc++ 时取消注释；运行库要先构建并 insmod
+# include $(LINUXCPP)/libcxx.mk
+# KBUILD_EXTRA_SYMBOLS := $(LINUXCPP)/runtime/Module.symvers
+endif
+"""
+    (module_dir / "module.toml").write_text(toml_text, encoding="utf-8")
+    (module_dir / "Makefile").write_text(makefile_text, encoding="utf-8")
+    shutil.copy2(driver_template, module_dir / "driver.cpp")
+
+    print(f"已创建 {module_dir}")
+    print("下一步：")
+    print(f"  make -C {module_dir} -j6")
+    print(f"  sudo insmod {module_dir / (name + '.ko')}")
+    print(f"  cat /dev/{name}")
 
 
 def main():
     args = parse_args()
     module_dir = Path(args.module_dir).resolve()
+
+    if args.init:
+        if args.module_dir == ".":
+            sys.exit("--init 需要指定新模块目录，例如 --init path/to/my_module")
+        init_module(module_dir)
+        return
+
     if not module_dir.is_dir():
         sys.exit(f"模块目录不存在: {module_dir}")
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 由 build.py 从 raw_top.c.in 生成，不要手改。
 // 只负责模块加载/卸载，具体注册什么由 C++ 层的 lcpp_module_init/exit 决定。

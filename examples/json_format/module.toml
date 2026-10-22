@@ -1,0 +1,16 @@
+[module]
+name = "json_format"
+description = "format a JSON file in place via a user supplied fd"
+license = "GPL"
+
+[device]
+name = "json_format"
+mode = "0666"
+
+[bindings]
+roots = ["file", "file_operations", "kiocb", "iov_iter", "miscdevice"]
+extern = ["misc_register", "misc_deregister", "compat_ptr_ioctl"]
+thunk = ["copy_to_iter", "copy_from_iter", "copy_from_user", "copy_to_user"]
+
+[build]
+cxx_includes = ["../../third_party/rapidjson/include"]

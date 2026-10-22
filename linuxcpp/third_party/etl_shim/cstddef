@@ -1,4 +1,0 @@
-/* 由 gen_libc_shim.py 生成，不要手改 */
-#pragma once
-#include <stddef.h>
-namespace std { using ::size_t; using ::ptrdiff_t; }

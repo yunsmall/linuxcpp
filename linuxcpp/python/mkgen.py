@@ -22,16 +22,19 @@ LINUXCPP ?= {LIB_DIR}
 ifeq ($(LINUXCPP_BUILD),)
 # 直接 make：交给 driver；driver include 本文件时这段不会生效
 all:
-\t$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" PYTHON="$(PYTHON)"
+\t@$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" PYTHON="$(PYTHON)"
 
 clean:
-\t$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" PYTHON="$(PYTHON)" clean
+\t@$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" PYTHON="$(PYTHON)" clean
 
 else
 MODULE_NAME := {config["name"]}
 obj-m := $(MODULE_NAME).o
 $(MODULE_NAME)-y := {object_text}
 LCPP_ENTRY_OBJ := {entry_obj}
+
+# C 库子集独立于 libc++；不用 libc++ 也可以直接用 <string.h>/<stdlib.h> 等
+include $(LINUXCPP)/libc.mk
 endif
 """
     path = module_dir / "Makefile"

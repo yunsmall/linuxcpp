@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // Device 对象风格和 misc 设备注册的实现。
 // 所有状态都在 misc_device 实例里，不使用库级全局变量。

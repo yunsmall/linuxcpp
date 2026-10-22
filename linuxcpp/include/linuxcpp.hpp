@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // linuxcpp 核心库：给用户模块提供的 C++ 设施。
 // 只依赖生成的 bindings.hpp，不 include 任何内核头。

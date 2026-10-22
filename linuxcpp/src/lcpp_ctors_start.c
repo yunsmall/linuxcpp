@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 链接顺序上排在所有 .init_array/.fini_array 输入段之前。
 

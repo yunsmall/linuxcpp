@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 内核错误指针工具，对应 IS_ERR/PTR_ERR/ERR_PTR。
 

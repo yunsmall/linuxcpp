@@ -1,8 +1,10 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 核心库固定需要的 C thunk：宏和初始化函数没法从内核头自动提取。
 
 #include <linux/atomic.h>
+#include <linux/bug.h>
+#include <linux/kernel.h>
 #include <linux/mutex.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
@@ -11,7 +13,9 @@
 
 void *lc_kmalloc(size_t size);
 void lc_kfree(void *ptr);
+void lc_might_sleep(void);
 void lc_printk(const char *fmt, ...);
+void lc_bug(void) __attribute__((noreturn));
 void lc_mutex_init(struct mutex *mutex);
 void lc_mutex_destroy(struct mutex *mutex);
 void lc_mutex_lock(struct mutex *mutex);
@@ -34,6 +38,13 @@ void lc_kfree(void *ptr)
 	kfree(ptr);
 }
 
+// C++ 的 operator new 只会用 GFP_KERNEL；在原子上下文里调用时让内核
+// 立刻打印调用栈，而不是等到 schedule 时才发现问题
+void lc_might_sleep(void)
+{
+	might_sleep();
+}
+
 // C++ 的变参函数不能直接转发给 printk，用 vprintk 接住 va_list
 void lc_printk(const char *fmt, ...)
 {
@@ -42,6 +53,13 @@ void lc_printk(const char *fmt, ...)
 	va_start(args, fmt);
 	vprintk(fmt, args);
 	va_end(args);
+}
+
+// libc++ 在 -fno-exceptions 下把断言失败交给这个入口；内核里没有异常，
+// 只能打印原因后 BUG，留下调用栈方便定位
+__attribute__((noreturn)) void lc_bug(void)
+{
+	BUG();
 }
 
 void lc_mutex_init(struct mutex *mutex)

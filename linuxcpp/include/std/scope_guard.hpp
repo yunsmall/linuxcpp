@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 作用域退出时执行清理，替代成对的 goto/cleanup 分支。
 

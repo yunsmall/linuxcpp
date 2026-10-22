@@ -1,0 +1,13 @@
+--- a/include/errno.h
++++ b/include/errno.h
+@@ -35,7 +35,9 @@
+ #    include_next <errno.h>
+ #  endif
+ 
+-#  ifdef __cplusplus
++// 内核移植：错误码由 libcxx/c/errno.h 以 enum 提供，不能再定义成宏，
++// 否则 linuxcpp::EFAULT 这类带命名空间的标识符会被替换掉。
++#  if defined(__cplusplus) && !defined(_LIBCPP_ERRNO_DEFINED_BY_PORT)
+ 
+ #    if !defined(EOWNERDEAD) || !defined(ENOTRECOVERABLE)
+ 

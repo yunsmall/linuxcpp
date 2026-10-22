@@ -373,6 +373,10 @@ def generate(args):
     types.set_btf_layout(named_layout, anon_layout, btf_info.by_id, btf_info.typedefs)
 
     roots = list(records) if getattr(args, "all", False) else (args.roots or ROOTS)
+    known_roots = set(records) | set(typedefs) | set(enums)
+    for name in roots:
+        if name not in known_roots:
+            print(f"警告：roots 里的 {name} 在 BTF 中没有对应类型，已忽略")
     deps = Dependencies(records, typedefs, enums)
     deps.run(roots)
     known = deps.want_records | deps.want_typedefs | deps.fwd_records | set(deps.want_enums)
@@ -380,20 +384,43 @@ def generate(args):
     macro_names = list(dict.fromkeys(CORE_MACROS + args.macro))
     macro_defs = decls.parse_macros(macro_names, args.kdir, args.headers)
     extern_decls, thunk_decls, thunk_sources = [], [], []
+    thunk_prototypes = []
     if args.extern or args.thunk:
         found = decls.parse_kernel_decls(set(args.extern) | set(args.thunk),
                                          args.kdir, args.headers)
+        exported = decls.kernel_exported_symbols(args.kdir)
         for name in args.extern:
             cursor = found.get(name)
             if cursor is None:
-                print(f"警告：找不到 {name} 的声明")
+                print(f"警告：extern 里的 {name} 找不到函数声明；"
+                      f"如果它是 static inline，请改放到 bindings.thunk；"
+                      f"如果是函数宏，只能在 C 文件里手写包装")
                 continue
+            # static inline 在头文件里有定义，却没有可链接的导出符号
+            if cursor.is_definition() and cursor.storage_class == ci.StorageClass.STATIC:
+                print(f"警告：extern 里的 {name} 是 static inline 定义，"
+                      f"导出符号并不存在；请改放到 bindings.thunk")
+                continue
+            if exported is not None and name not in exported:
+                print(f"警告：extern 里的 {name} 不在 {args.kdir}/Module.symvers 中，"
+                      f"可能没有导出；如果它是 static inline，请改放到 bindings.thunk")
             extern_decls.append(decls.gen_cpp_decl(cursor, "", known))
         for name in args.thunk:
             cursor = found.get(name)
-            if cursor is None or not cursor.is_definition():
-                print(f"警告：找不到 {name} 的 inline 定义，跳过")
+            if cursor is None:
+                print(f"警告：thunk 里的 {name} 找不到函数声明；"
+                      f"如果它是函数宏，只能在 C 文件里手写包装")
                 continue
+            if not cursor.is_definition():
+                if exported is not None and name in exported:
+                    print(f"警告：thunk 里的 {name} 是导出函数，没有内联定义；"
+                          f"请改放到 bindings.extern")
+                else:
+                    print(f"警告：thunk 里的 {name} 在头文件里没有定义，无法生成 thunk；"
+                          f"如果它是导出函数，请改放到 bindings.extern")
+                continue
+            thunk_prototypes.append(
+                decls.gen_c_thunk_head(cursor, args.prefix) + ";")
             thunk_sources.append(decls.gen_c_thunk(cursor, args.prefix))
             thunk_decls.append(decls.gen_cpp_decl(cursor, args.prefix, known))
     order = types.output_order(deps)
@@ -527,6 +554,7 @@ def generate(args):
     headers = list(dict.fromkeys((args.headers or []) + DEFAULT_HEADERS))
     parts = ["// 由 gen_bindings.py 自动生成，不要手改"]
     parts += [f"#include <{header}>" for header in headers]
+    parts += thunk_prototypes
     parts += thunk_sources
     with open(os.path.join(args.work_dir, "thunks_gen.c"), "w", encoding="utf-8") as handle:
         handle.write("\n\n".join(parts) + "\n")

@@ -1,0 +1,8 @@
+[module]
+name = "libc_demo"
+description = "Kernel libc subset without libc++"
+license = "GPL"
+
+[device]
+name = "libc_demo"
+mode = "0666"

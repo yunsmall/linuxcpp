@@ -12,6 +12,9 @@ WRAPPER_PROMPT.md
 # 本地临时目录（复杂模块示例、构建中间产物）
 tmp/
 
+# 自行下载的第三方库（ETL/CTRE 等），不随仓库分发
+/third_party/
+
 # 内核模块构建产物
 *.o
 *.ko
@@ -28,15 +31,19 @@ generated/
 entry_gen.c
 layout_check.c
 thunks_gen.c
+libcxx_exports.c
 linuxcpp_thunks.c
+libc_port.c
 lcpp_ctors.c
 lcpp_ctors_start.c
 lcpp_ctors_end.c
 Makefile
 Kbuild
 
-# 上面几条是模块目录里的生成副本；核心库自己的源码和构建 driver 必须保留
+# 上面几条是模块目录里的生成副本；仓库根目录和运行库的 Makefile 必须保留
+!/Makefile
 !linuxcpp/Makefile
+!linuxcpp/runtime/Makefile
 !linuxcpp/src/linuxcpp_thunks.c
 !linuxcpp/src/lcpp_ctors.c
 !linuxcpp/src/lcpp_ctors_start.c

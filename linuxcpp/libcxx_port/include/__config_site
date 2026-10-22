@@ -1,0 +1,47 @@
+// 内核移植配置：关闭所有依赖宿主环境的功能。
+// libc++ 20 对这些开关用 0/1 的 cmakedefine01，未定义会被当成错误配置。
+
+#ifndef _LIBCPP___CONFIG_SITE
+#define _LIBCPP___CONFIG_SITE
+
+// 上游由 CMake 生成这个宏；不定义时 valarray.cpp 的 v1 ABI 分支判断会
+// 在 -Wundef 下告警，而且编译结果会悄悄走 >=v2 的分支
+#define _LIBCPP_ABI_VERSION 1
+
+// 内核里没有进程/线程库，线程相关功能关闭
+#define _LIBCPP_ABI_FORCE_ITANIUM 0
+#define _LIBCPP_ABI_FORCE_MICROSOFT 0
+#define _LIBCPP_HAS_THREADS 0
+// steady_clock 由 libcxx_port/src/chrono.cpp 接到内核单调时钟
+#define _LIBCPP_HAS_MONOTONIC_CLOCK 1
+
+// 终端、locale、文件系统、随机设备、时区数据库都不是内核模块该碰的
+#define _LIBCPP_HAS_TERMINAL 0
+#define _LIBCPP_HAS_MUSL_LIBC 0
+#define _LIBCPP_HAS_THREAD_API_PTHREAD 0
+#define _LIBCPP_HAS_THREAD_API_EXTERNAL 0
+#define _LIBCPP_HAS_THREAD_API_WIN32 0
+#define _LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS 0
+#define _LIBCPP_HAS_FILESYSTEM 0
+#define _LIBCPP_HAS_RANDOM_DEVICE 0
+#define _LIBCPP_HAS_LOCALIZATION 0
+
+// 只保留窄字符；宽字符依赖大量内核没有的 wcs 函数
+#define _LIBCPP_HAS_UNICODE 1
+#define _LIBCPP_HAS_WIDE_CHARACTERS 0
+#define _LIBCPP_HAS_TIME_ZONE_DATABASE 0
+
+#define _LIBCPP_INSTRUMENTED_WITH_ASAN 0
+#define _LIBCPP_HARDENING_MODE_DEFAULT _LIBCPP_HARDENING_MODE_NONE
+#define _LIBCPP_HAS_NO_STD_MODULES
+
+// libc++ 的 __libcpp_verbose_abort 标了 noreturn，但它在运行库模块里，
+// objtool 无法跨模块识别，会把调用后面的代码误报成 falls through。
+// 换成先打印、再执行 __builtin_trap()：trap 是编译器生成的 ud2，
+// objtool 能识别成终止指令，不再误报。
+#ifdef __cplusplus
+extern "C" void lcpp_log_abort(const char *, ...) noexcept;
+#define _LIBCPP_VERBOSE_ABORT(...) (::lcpp_log_abort(__VA_ARGS__), __builtin_trap())
+#endif
+
+#endif

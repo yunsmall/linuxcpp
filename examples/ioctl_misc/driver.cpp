@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // misc 设备 + ioctl：C 风格 fops、用户态数据拷贝、标准库锁。
 

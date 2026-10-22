@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 内核 mutex 的 RAII 封装，命名空间固定为 linuxcpp::std。
 

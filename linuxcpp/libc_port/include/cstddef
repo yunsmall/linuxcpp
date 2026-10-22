@@ -1,0 +1,10 @@
+// 内核 C++ 代码的最小 <cstddef>；ETL 等无 STL 库需要 std::size_t/ptrdiff_t。
+
+#pragma once
+
+#include <stddef.h>
+
+namespace std {
+using ::size_t;
+using ::ptrdiff_t;
+}

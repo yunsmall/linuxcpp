@@ -1,3 +1,0 @@
-[submodule "linuxcpp/third_party/etl"]
-	path = linuxcpp/third_party/etl
-	url = https://github.com/ETLCPP/etl.git

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 可选的面向对象设备封装。
 // C 风格模块只 include linuxcpp.hpp；需要继承 Device 或使用 misc_device 时再 include 这个头。

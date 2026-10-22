@@ -1,0 +1,83 @@
+--- a/include/__hash_table
++++ b/include/__hash_table
+@@ -10,6 +10,8 @@
+ #ifndef _LIBCPP___HASH_TABLE
+ #define _LIBCPP___HASH_TABLE
+ 
++// 内核移植：max_load_factor 的浮点除法在 -mno-sse 下无法编译，
++// 桶数按负载因子 1.0 计算；容器仍然正确，只是自定义 max_load_factor 不生效。
+ #include <__algorithm/max.h>
+ #include <__algorithm/min.h>
+ #include <__assert>
+@@ -883,10 +885,10 @@
+   _LIBCPP_HIDE_FROM_ABI void __rehash_unique(size_type __n) { __rehash<true>(__n); }
+   _LIBCPP_HIDE_FROM_ABI void __rehash_multi(size_type __n) { __rehash<false>(__n); }
+   _LIBCPP_HIDE_FROM_ABI void __reserve_unique(size_type __n) {
+-    __rehash_unique(static_cast<size_type>(__math::ceil(__n / max_load_factor())));
++    __rehash_unique(__n);
+   }
+   _LIBCPP_HIDE_FROM_ABI void __reserve_multi(size_type __n) {
+-    __rehash_multi(static_cast<size_type>(__math::ceil(__n / max_load_factor())));
++    __rehash_multi(__n);
+   }
+ 
+   _LIBCPP_HIDE_FROM_ABI size_type bucket_count() const _NOEXCEPT { return __bucket_list_.get_deleter().size(); }
+@@ -1370,9 +1372,9 @@
+       }
+     }
+   }
+-  if (size() + 1 > __bc * max_load_factor() || __bc == 0) {
++  if (size() + 1 > __bc || __bc == 0) {
+     __rehash_unique(std::max<size_type>(
+-        2 * __bc + !std::__is_hash_power2(__bc), size_type(__math::ceil(float(size() + 1) / max_load_factor()))));
++        2 * __bc + !std::__is_hash_power2(__bc), size_type(size() + 1)));
+   }
+   return nullptr;
+ }
+@@ -1430,9 +1432,9 @@
+ typename __hash_table<_Tp, _Hash, _Equal, _Alloc>::__next_pointer
+ __hash_table<_Tp, _Hash, _Equal, _Alloc>::__node_insert_multi_prepare(size_t __cp_hash, value_type& __cp_val) {
+   size_type __bc = bucket_count();
+-  if (size() + 1 > __bc * max_load_factor() || __bc == 0) {
++  if (size() + 1 > __bc || __bc == 0) {
+     __rehash_multi(std::max<size_type>(
+-        2 * __bc + !std::__is_hash_power2(__bc), size_type(__math::ceil(float(size() + 1) / max_load_factor()))));
++        2 * __bc + !std::__is_hash_power2(__bc), size_type(size() + 1)));
+     __bc = bucket_count();
+   }
+   size_t __chash      = std::__constrain_hash(__cp_hash, __bc);
+@@ -1505,9 +1507,9 @@
+     __next_pointer __np = __p.__node_;
+     __cp->__hash_       = __np->__hash();
+     size_type __bc      = bucket_count();
+-    if (size() + 1 > __bc * max_load_factor() || __bc == 0) {
++    if (size() + 1 > __bc || __bc == 0) {
+       __rehash_multi(std::max<size_type>(
+-          2 * __bc + !std::__is_hash_power2(__bc), size_type(__math::ceil(float(size() + 1) / max_load_factor()))));
++          2 * __bc + !std::__is_hash_power2(__bc), size_type(size() + 1)));
+       __bc = bucket_count();
+     }
+     size_t __chash      = std::__constrain_hash(__cp->__hash_, __bc);
+@@ -1545,9 +1547,9 @@
+   }
+   {
+     __node_holder __h = __construct_node_hash(__hash, std::forward<_Args>(__args)...);
+-    if (size() + 1 > __bc * max_load_factor() || __bc == 0) {
++    if (size() + 1 > __bc || __bc == 0) {
+       __rehash_unique(std::max<size_type>(
+-          2 * __bc + !std::__is_hash_power2(__bc), size_type(__math::ceil(float(size() + 1) / max_load_factor()))));
++          2 * __bc + !std::__is_hash_power2(__bc), size_type(size() + 1)));
+       __bc    = bucket_count();
+       __chash = std::__constrain_hash(__hash, __bc);
+     }
+@@ -1716,8 +1718,8 @@
+   else if (__n < __bc) {
+     __n = std::max<size_type>(
+         __n,
+-        std::__is_hash_power2(__bc) ? std::__next_hash_pow2(size_t(__math::ceil(float(size()) / max_load_factor())))
+-                                    : std::__next_prime(size_t(__math::ceil(float(size()) / max_load_factor()))));
++        std::__is_hash_power2(__bc) ? std::__next_hash_pow2(size_t(size()))
++                                    : std::__next_prime(size_t(size())));
+     if (__n < __bc)
+       __do_rehash<_UniqueKeys>(__n);
+   }

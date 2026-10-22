@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // ETL 固定容量容器示例：一个内存键值存储。
 //   echo "set name linuxcpp" > /dev/etl_kv

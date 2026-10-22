@@ -52,6 +52,22 @@ def probe_c_flags(module_dir, kdir, target):
     sys.exit("抓不到 gcc 命令行")
 
 
+# 生成 libc 头时只需要会改变类型布局的参数：-m32/-m64 决定 long/指针宽度，
+# -fshort-wchar 决定 wchar_t 宽度，-funsigned-char 决定 char 是否有符号。
+# 内核的其它 -mno-sse/-mcmodel 之类预处理阶段用不到，传了反而增加出错面。
+_ABI_FLAGS = {
+    "-m32", "-m64", "-mx32",
+    "-fshort-wchar", "-funsigned-char", "-fsigned-char", "-fshort-enums",
+}
+_ABI_PREFIXES = ("-mabi=", "-march=", "-mbig-endian", "-mlittle-endian")
+
+
+def pick_abi_flags(args):
+    """从 kbuild 的 C 命令行里挑出影响整数类型宽度的参数"""
+    return [arg for arg in args
+            if arg in _ABI_FLAGS or arg.startswith(_ABI_PREFIXES)]
+
+
 def to_cxx_flags(args):
     result = []
     index = 0

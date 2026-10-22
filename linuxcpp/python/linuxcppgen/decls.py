@@ -12,6 +12,28 @@ from .btf import kernel_include_flags
 from .config import DEFAULT_HEADERS
 from .types import cpp_param, cpp_type, gen_func_pointer, gen_type, split_declarator
 
+# 同一个 kdir 在一次生成里会被问很多次；Module.symvers 有几十万行，
+# 每次重读会明显拖慢绑定生成
+_export_cache = {}
+
+
+def kernel_exported_symbols(kdir):
+    """读内核构建树的 Module.symvers；读不到时返回 None，跳过导出检查"""
+    path = os.path.join(kdir, "Module.symvers")
+    if path in _export_cache:
+        return _export_cache[path]
+    symbols = set()
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                fields = line.split()
+                if len(fields) >= 2:
+                    symbols.add(fields[1])
+    except OSError:
+        symbols = None
+    _export_cache[path] = symbols
+    return symbols
+
 
 def parse_kernel_decls(names, kdir, headers):
     """在真实内核头里找函数声明/定义，签名交给 clang 解析"""
@@ -158,17 +180,23 @@ def c_function_head(cursor, prefix, params):
     return f"{ret.spelling} {prefix}{cursor.spelling}({params_text})"
 
 
-def gen_c_thunk(cursor, prefix):
-    if cursor.type.is_function_variadic():
-        sys.exit(f"{cursor.spelling} 是变参函数，不能自动生成 C thunk；请手写转发 va_list 的包装")
-    params, args = [], []
+def gen_c_thunk_head(cursor, prefix):
+    """thunk 的函数头，定义和前置声明共用，避免 -Wmissing-prototypes"""
+    params = []
     for index, arg in enumerate(cursor.get_arguments()):
         name = arg.spelling or f"arg{index}"
         params.append(c_param(arg.type, name))
-        args.append(name)
+    return c_function_head(cursor, prefix, params)
+
+
+def gen_c_thunk(cursor, prefix):
+    if cursor.type.is_function_variadic():
+        sys.exit(f"{cursor.spelling} 是变参函数，不能自动生成 C thunk；请手写转发 va_list 的包装")
+    args = [arg.spelling or f"arg{index}"
+            for index, arg in enumerate(cursor.get_arguments())]
     call = f"{cursor.spelling}({', '.join(args)})"
     body = f"{call};" if cursor.result_type.spelling == "void" else f"return {call};"
-    return f"{c_function_head(cursor, prefix, params)}\n{{\n\t{body}\n}}"
+    return f"{gen_c_thunk_head(cursor, prefix)}\n{{\n\t{body}\n}}"
 
 
 def cpp_function_head(cursor, prefix, params, known):

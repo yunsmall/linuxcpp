@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 
 // 内核态动态数组，命名空间固定为 linuxcpp::std。
 // 扩容走 operator new(GFP_KERNEL)，只能在可睡眠上下文调用。

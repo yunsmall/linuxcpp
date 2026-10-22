@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "linuxcpp" / "python"))
 
 import build
+from linuxcppgen import decls
 
 
 class BuildTest(unittest.TestCase):
@@ -105,6 +106,39 @@ class BuildTest(unittest.TestCase):
             (module / "my_entry.cpp").write_text("//\n", encoding="utf-8")
             with self.assertRaises(SystemExit):
                 build.generate_sources(module, self.module_config("my_entry.c"))
+
+    def test_init_creates_module(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            module = Path(tmp) / "my_module"
+            build.init_module(module)
+            toml = (module / "module.toml").read_text(encoding="utf-8")
+            makefile = (module / "Makefile").read_text(encoding="utf-8")
+            driver = (module / "driver.cpp").read_text(encoding="utf-8")
+            self.assertIn('name = "my_module"', toml)
+            self.assertIn("MODULE_NAME := my_module", makefile)
+            self.assertIn("include $(LINUXCPP)/libcxx.mk", makefile)
+            self.assertIn("LCPP_MODULE_RAW", driver)
+            # 第二次创建必须拒绝，不能覆盖用户已经改过的文件
+            with self.assertRaises(SystemExit):
+                build.init_module(module)
+
+    def test_init_rejects_invalid_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit):
+                build.init_module(Path(tmp) / "1bad")
+
+    def test_kernel_exported_symbols(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "Module.symvers").write_text(
+                "0x12345678\tmisc_register\tvmlinux\tEXPORT_SYMBOL\n"
+                "0x9abcdef0\tcopy_to_iter\tvmlinux\tEXPORT_SYMBOL_GPL\n",
+                encoding="utf-8")
+            symbols = decls.kernel_exported_symbols(tmp)
+            self.assertEqual(symbols, {"misc_register", "copy_to_iter"})
+
+    def test_kernel_exported_symbols_missing_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(decls.kernel_exported_symbols(tmp))
 
 
 if __name__ == "__main__":
