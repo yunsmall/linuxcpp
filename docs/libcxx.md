@@ -75,7 +75,7 @@ KBUILD_EXTRA_SYMBOLS := $(LINUXCPP)/runtime/Module.symvers
 # KBUILD_EXTRA_SYMBOLS := $(LINUXCPP)/runtime/Module.symvers
 ```
 
-自动生成的 Makefile 会被 `build.py` 覆盖，所以要把模块 Makefile 改成手写版本（去掉第一行的自动生成标记），或者一开始就用 `--init` 创建。
+Makefile 只在缺失时由 `build.py` 初始化一次，之后归用户维护；把上面的行加进 `$(LINUXCPP_BUILD)` 分支即可。新增源文件同样直接加到 `<模块名>-y`。
 
 不使用共享运行库时，也可以在模块 Makefile 里设置 `LCPP_LIBCXX := 1`，把运行库源码直接编进当前模块；这样每个模块都会增大几 MB，通常只在调试运行库本身时有用。
 
@@ -128,7 +128,7 @@ libc++ 的 `<cstdlib>`、`<cstring>`、`<cstdio>` 这类 C++ 头不会直接 inc
 
 | 头文件 | 内容 |
 |---|---|
-| `<模块>/generated/libc_port/include/errno.h` | 从目标内核 `<asm/errno.h>` 生成 enum 错误码，避免宏替换 `linuxcpp::EFAULT` |
+| `<模块>/generated/libc_port/include/errno.h` | 从目标内核 `<asm/errno.h>` 生成 enum 错误码，避免宏替换 `linuxcpp::abi::EFAULT` |
 | `<模块>/generated/libc_port/include/bits/types.h` | `time_t`/`ssize_t`/`clock_t`/`wint_t`，来自编译器内置宏 |
 | `<模块>/generated/libc_port/include/bits/limits.h` | 整数限值，来自编译器内置宏，按目标架构生成 |
 | `string.h` | `memcpy/strlen` 等内核导出声明，`strerror/strdup/strndup` 由 libc_port 实现；locale 相关标成不可用 |

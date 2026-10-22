@@ -12,10 +12,10 @@ static int raw_init(void)
 	if (!mutex.ok() || !values.push_back(1))
 		return -12;
 
-	void *ptr = linuxcpp::lc_kmalloc(16);
+	void *ptr = linuxcpp::abi::lc_kmalloc(16);
 	if (ptr == nullptr)
 		return -12;
-	linuxcpp::lc_kfree(ptr);
+	linuxcpp::abi::lc_kfree(ptr);
 	return 0;
 }
 

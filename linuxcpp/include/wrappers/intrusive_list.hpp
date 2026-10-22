@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-// 包装内核 list_head 的侵入式双向链表。
-// 需要生成的 bindings 里有完整的 list_head 定义（module.toml 的 roots 加 "list_head"）。
+// 包装内核 abi::list_head 的侵入式双向链表。
+// 需要生成的 bindings 里有完整的 abi::list_head 定义（module.toml 的 roots 加 "abi::list_head"）。
 
 #pragma once
 
@@ -12,7 +12,7 @@
 namespace linuxcpp {
 namespace wrappers {
 
-// Offset 是 list_head 成员在 T 中的偏移；元素所有权仍归调用方
+// Offset 是 abi::list_head 成员在 T 中的偏移；元素所有权仍归调用方
 template <typename T, size_t Offset>
 class intrusive_list {
 public:
@@ -47,7 +47,7 @@ public:
 
 	class iterator {
 	public:
-		explicit iterator(list_head *node) noexcept : node_(node) {}
+		explicit iterator(abi::list_head *node) noexcept : node_(node) {}
 
 		T &operator*() const noexcept { return *owner(node_); }
 		T *operator->() const noexcept { return owner(node_); }
@@ -62,15 +62,15 @@ public:
 		bool operator!=(const iterator &other) const noexcept { return node_ != other.node_; }
 
 	private:
-		list_head *node_;
+		abi::list_head *node_;
 	};
 
 	class const_iterator {
 	public:
-		explicit const_iterator(const list_head *node) noexcept : node_(node) {}
+		explicit const_iterator(const abi::list_head *node) noexcept : node_(node) {}
 
-		const T &operator*() const noexcept { return *owner(const_cast<list_head *>(node_)); }
-		const T *operator->() const noexcept { return owner(const_cast<list_head *>(node_)); }
+		const T &operator*() const noexcept { return *owner(const_cast<abi::list_head *>(node_)); }
+		const T *operator->() const noexcept { return owner(const_cast<abi::list_head *>(node_)); }
 
 		const_iterator &operator++() noexcept
 		{
@@ -88,7 +88,7 @@ public:
 		}
 
 	private:
-		const list_head *node_;
+		const abi::list_head *node_;
 	};
 
 	iterator begin() noexcept { return iterator(head_.next); }
@@ -97,17 +97,17 @@ public:
 	const_iterator end() const noexcept { return const_iterator(&head_); }
 
 private:
-	static T *owner(list_head *node) noexcept
+	static T *owner(abi::list_head *node) noexcept
 	{
 		return reinterpret_cast<T *>(reinterpret_cast<char *>(node) - Offset);
 	}
 
-	static list_head &node(T &item) noexcept
+	static abi::list_head &node(T &item) noexcept
 	{
-		return *reinterpret_cast<list_head *>(reinterpret_cast<char *>(&item) + Offset);
+		return *reinterpret_cast<abi::list_head *>(reinterpret_cast<char *>(&item) + Offset);
 	}
 
-	static void insert_before(list_head &pos, list_head &item) noexcept
+	static void insert_before(abi::list_head &pos, abi::list_head &item) noexcept
 	{
 		item.next = &pos;
 		item.prev = pos.prev;
@@ -115,7 +115,7 @@ private:
 		pos.prev = &item;
 	}
 
-	static void unlink(list_head &item) noexcept
+	static void unlink(abi::list_head &item) noexcept
 	{
 		item.prev->next = item.next;
 		item.next->prev = item.prev;
@@ -123,7 +123,7 @@ private:
 		item.prev = &item;
 	}
 
-	list_head head_;
+	abi::list_head head_;
 };
 
 }  // namespace wrappers

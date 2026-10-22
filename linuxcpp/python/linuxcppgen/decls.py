@@ -9,7 +9,7 @@ import sys
 import clang.cindex as ci
 
 from .btf import kernel_include_flags
-from .config import DEFAULT_HEADERS
+from .config import DEFAULT_HEADERS, cpp_field_name
 from .types import cpp_param, cpp_type, gen_func_pointer, gen_type, split_declarator
 
 # 同一个 kdir 在一次生成里会被问很多次；Module.symvers 有几十万行，
@@ -223,7 +223,10 @@ def cpp_function_head(cursor, prefix, params, known):
 def gen_cpp_decl(cursor, prefix, known):
     params = []
     for index, arg in enumerate(cursor.get_arguments()):
-        name = arg.spelling or f"arg{index}"
+        # 内核参数名可能就是 C++ 关键字（class_register 的 class），
+        # 生成声明时必须按字段名规则转义
+        name = cpp_field_name(arg.spelling) if arg.spelling.isidentifier() \
+            else f"arg{index}"
         params.append(cpp_param(arg.type, name, known))
     if cursor.type.is_function_variadic():
         params.append("...")

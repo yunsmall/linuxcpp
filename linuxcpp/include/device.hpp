@@ -1,104 +1,238 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-// 可选的面向对象设备封装。
-// C 风格模块只 include linuxcpp.hpp；需要继承 Device 或使用 misc_device 时再 include 这个头。
+// 设备基类、字符设备和 misc 设备。
+//
+// 内核的 struct device 用嵌入实现继承，file_operations 用函数指针实现虚表。
+// 这里把这两层翻成 C++：device 是基类，char_device 的虚函数就是 file_operations，
+// misc_device 再负责把它注册成 /dev 节点。设备模型的 bus/driver/platform 在
+// device_model.hpp 里，不塞进同一个文件。
+//
+// char_device 用 CRTP 拿到派生类类型：派生类覆盖了哪个文件操作，就只给对应的
+// file_operations 指针装 trampoline，没覆盖的保持 NULL，交给 VFS 默认语义。
 
 #pragma once
+
+#include <stddef.h>
 
 #include "linuxcpp.hpp"
 
 namespace linuxcpp {
+namespace model {
 
-// 用户设备需要继承的基类；默认实现返回 -EINVAL
-class Device {
+namespace detail {
+
+// 派生类覆盖虚函数后，&Derived::method 的类型会从“指向基类成员”变成
+// “指向派生类成员”；不需要 RTTI，也不需要 C++26 反射
+template <typename A, typename B>
+struct same_type {
+	static constexpr bool value = false;
+};
+
+template <typename A>
+struct same_type<A, A> {
+	static constexpr bool value = true;
+};
+
+}  // namespace detail
+
+class device {
 public:
-	virtual ~Device() = default;
+	virtual ~device() = default;
 
-	virtual int open(file *f)
+	// 内核里的 struct device；没有对应内核对象时返回 nullptr
+	virtual abi::device *kernel() = 0;
+	virtual const char *name() const = 0;
+
+	// struct device.release 的 C++ 版本
+	virtual void on_release() {}
+};
+
+// 字符设备基类：这些虚函数就是 file_operations。
+// Derived 是最终设备类型，用来判断哪些虚函数被覆盖。
+template <typename Derived>
+class char_device : public device {
+public:
+	virtual ~char_device() = default;
+
+	char_device(const char_device &) = delete;
+	char_device &operator=(const char_device &) = delete;
+	char_device(char_device &&) = delete;
+	char_device &operator=(char_device &&) = delete;
+
+	virtual int open(abi::file *f)
 	{
 		(void)f;
 		return 0;
 	}
 
-	virtual int release(file *f)
+	virtual int release(abi::file *f)
 	{
 		(void)f;
 		return 0;
 	}
 
-	virtual ssize_t read(kiocb *iocb, iov_iter *to)
+	virtual abi::ssize_t read(abi::kiocb *iocb, abi::iov_iter *to)
 	{
 		(void)iocb;
 		(void)to;
-		return -EINVAL;
+		return -abi::EINVAL;
 	}
 
-	virtual ssize_t write(kiocb *iocb, iov_iter *from)
+	virtual abi::ssize_t write(abi::kiocb *iocb, abi::iov_iter *from)
 	{
 		(void)iocb;
 		(void)from;
-		return -EINVAL;
+		return -abi::EINVAL;
 	}
 
-	virtual long ioctl(file *f, unsigned int cmd, unsigned long arg)
+	virtual long ioctl(abi::file *f, unsigned int cmd, unsigned long arg)
 	{
 		(void)f;
 		(void)cmd;
 		(void)arg;
-		return -ENOTTY;
+		return -abi::ENOTTY;
+	}
+
+protected:
+	char_device() noexcept
+	{
+		fops_holder_.owner = this;
+		fops_holder_.fops = {};
+
+		abi::file_operations &fops = fops_holder_.fops;
+
+		fops.owner = this_module();
+		// open 必须始终安装：它负责把对象指针放进 file->private_data，
+		// 后面的 read/write/ioctl 才能找回对象
+		fops.open = &open_trampoline;
+		fops.release = &release_trampoline;
+		if constexpr (has_read)
+			fops.read_iter = &read_trampoline;
+		if constexpr (has_write)
+			fops.write_iter = &write_trampoline;
+		if constexpr (has_ioctl) {
+			fops.unlocked_ioctl = &ioctl_trampoline;
+			fops.compat_ioctl = abi::compat_ptr_ioctl;
+		}
+	}
+
+	// 多态对象不能拿来做 offsetof；这个标准布局 holder 只存内核结构和
+	// owner 指针，trampoline 从 file_operations 反查回 char_device
+	struct holder {
+		abi::file_operations fops{};
+		char_device *owner = nullptr;
+	};
+
+	holder fops_holder_{};
+
+private:
+	// 派生类覆盖虚函数后，成员指针的类型会变成 Derived::*。
+	// 这些方法必须是 public，且不能对同名 fops 方法加重载
+	static constexpr bool has_read =
+		!detail::same_type<decltype(&Derived::read),
+				   decltype(&char_device::read)>::value;
+	static constexpr bool has_write =
+		!detail::same_type<decltype(&Derived::write),
+				   decltype(&char_device::write)>::value;
+	static constexpr bool has_ioctl =
+		!detail::same_type<decltype(&Derived::ioctl),
+				   decltype(&char_device::ioctl)>::value;
+
+	static holder *from_fops(const abi::file_operations *fops) noexcept
+	{
+		if (!fops)
+			return nullptr;
+		return reinterpret_cast<holder *>(
+			reinterpret_cast<char *>(
+				const_cast<abi::file_operations *>(fops)) -
+			offsetof(holder, fops));
+	}
+
+	static int open_trampoline(abi::inode *inode, abi::file *file) noexcept
+	{
+		(void)inode;
+		holder *h = from_fops(file->f_op);
+
+		if (!h || !h->owner)
+			return -abi::ENODEV;
+		// open 失败时 VFS 不会置 FMODE_OPENED，也不会调用 release
+		file->private_data = h->owner;
+		return h->owner->open(file);
+	}
+
+	static int release_trampoline(abi::inode *inode, abi::file *file) noexcept
+	{
+		(void)inode;
+		auto *self = static_cast<char_device *>(file->private_data);
+
+		return self ? self->release(file) : -abi::ENODEV;
+	}
+
+	static abi::ssize_t read_trampoline(abi::kiocb *iocb,
+					    abi::iov_iter *to) noexcept
+	{
+		abi::file *file = iocb->ki_filp;
+		auto *self = file ? static_cast<char_device *>(file->private_data)
+				  : nullptr;
+
+		return self ? self->read(iocb, to) : -abi::ENODEV;
+	}
+
+	static abi::ssize_t write_trampoline(abi::kiocb *iocb,
+					     abi::iov_iter *from) noexcept
+	{
+		abi::file *file = iocb->ki_filp;
+		auto *self = file ? static_cast<char_device *>(file->private_data)
+				  : nullptr;
+
+		return self ? self->write(iocb, from) : -abi::ENODEV;
+	}
+
+	static long ioctl_trampoline(abi::file *file, unsigned int cmd,
+				     unsigned long arg) noexcept
+	{
+		auto *self = static_cast<char_device *>(file->private_data);
+
+		return self ? self->ioctl(file, cmd, arg) : -abi::ENODEV;
 	}
 };
 
-// 一个 misc 设备实例；fops/miscdevice 都内嵌在对象里，不依赖库级全局状态。
-// 不同实例可以注册不同的 /dev 节点，回调按 file->f_op 反查所属对象。
-class misc_device {
+// misc 设备：构造注册、析构注销；用户继承它并覆盖文件操作虚函数
+template <typename Derived>
+class misc_device : public char_device<Derived> {
 public:
-	// 静态存储期默认构造只做常量初始化，不产生 .init_array 依赖
-	constexpr misc_device() noexcept = default;
-	misc_device(Device *dev, const char *name, int mode) noexcept
+	explicit misc_device(const char *name, int mode = 0666) noexcept
 	{
-		setup(dev, name, mode);
+		misc_.minor = abi::MISC_DYNAMIC_MINOR;
+		misc_.name = name;
+		misc_.fops = &this->fops_holder_.fops;
+		misc_.mode = static_cast<decltype(misc_.mode)>(mode);
+		error_ = abi::misc_register(&misc_);
+	}
+
+	~misc_device() override
+	{
+		if (error_ == 0) {
+			error_ = -abi::EINVAL;
+			abi::misc_deregister(&misc_);
+		}
 	}
 
 	misc_device(const misc_device &) = delete;
 	misc_device &operator=(const misc_device &) = delete;
-	// 全局对象由 .fini_array 在模块 exit 后析构，这里兜底注销；stop 是幂等的
-	~misc_device() { stop(); }
+	misc_device(misc_device &&) = delete;
+	misc_device &operator=(misc_device &&) = delete;
 
-	void setup(Device *dev, const char *name, int mode) noexcept
-	{
-		// 已经注册时先注销，否则 registered_ 被清掉后旧 miscdevice 还挂在
-		// misc_list 里，下次 start() 会重复注册同一个对象。
-		// 有已打开 file 时不能调用：它们的 private_data 还指向旧 Device。
-		if (registered_)
-			stop();
-		dev_ = dev;
-		name_ = name;
-		mode_ = mode;
-		registered_ = false;
-	}
+	abi::device *kernel() override { return misc_.this_device; }
+	const char *name() const override { return misc_.name; }
 
-	int start();
-	// misc_deregister 不会等待已打开的 file；stop() 之后不要再释放 Device，
-	// 否则 release/read 等回调会踩已释放对象。调用方负责串行化 start/stop。
-	void stop();
-
-	Device *device() const noexcept { return dev_; }
-	bool registered() const noexcept { return registered_; }
-
-	// 从 file->f_op 反查所属实例；fops_ 是对象成员，不需要全局状态
-	static misc_device *from_fops(const file_operations *fops) noexcept;
+	[[nodiscard]] int error() const noexcept { return error_; }
+	explicit operator bool() const noexcept { return error_ == 0; }
 
 private:
-	Device *dev_ = nullptr;
-	const char *name_ = nullptr;
-	int mode_ = 0;
-	bool registered_ = false;
-	file_operations fops_{};
-	miscdevice misc_{};
+	abi::miscdevice misc_{};
+	int error_ = -abi::EINVAL;
 };
 
-// from_fops 用 offsetof 从成员反查对象，标准布局是前提
-static_assert(__is_standard_layout(misc_device), "misc_device 必须是标准布局");
-
+}  // namespace model
 }  // namespace linuxcpp

@@ -1,0 +1,7 @@
+[module]
+name = "device_model"
+description = "C++ device model wrappers demo"
+license = "GPL"
+
+[bindings]
+preset = "device_model"

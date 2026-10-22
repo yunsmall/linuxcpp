@@ -524,6 +524,12 @@ def gen_record_body(decl, mapper, field_mapper, cpp, indent, const_prefix=""):
     lines = []
     for field in decl.type.get_fields():
         lines.append(gen_field(field, mapper, field_mapper, cpp, indent, const_prefix))
+    # 内核里有 BTF size 为 0 的空结构体（dev_archdata 这类）。C 的空 struct
+    # 大小是 0，C++ 的却是 1；不补一个零长数组会把后面所有字段顶歪 8 字节
+    if not lines and cpp:
+        entry = btf_entry_for(decl)
+        if entry is not None and entry.get("size") == 0:
+            lines.append(f"{indent}char __lcpp_zero[0];")
     return "\n".join(lines)
 
 

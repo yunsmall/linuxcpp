@@ -18,12 +18,12 @@ public:
 	completion& operator=(completion&&) = delete;
 
 	void init() { lc_init_completion(&comp_); }
-	void wait() { linuxcpp::wait_for_completion(&comp_); }
-	void complete() { linuxcpp::complete(&comp_); }
-	void complete_all() { linuxcpp::complete_all(&comp_); }
+	void wait() { linuxcpp::abi::wait_for_completion(&comp_); }
+	void complete() { linuxcpp::abi::complete(&comp_); }
+	void complete_all() { linuxcpp::abi::complete_all(&comp_); }
 
 private:
-	linuxcpp::completion comp_;
+	linuxcpp::abi::completion comp_;
 };
 
 } // namespace wrappers

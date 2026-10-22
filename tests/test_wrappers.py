@@ -145,13 +145,17 @@ int main()
     def test_intrusive_list(self):
         bindings = self.dir / "bindings.hpp"
         bindings.write_text(
-            "#pragma once\n"
-            "namespace linuxcpp {\n"
-            "struct list_head {\n"
-            "    list_head *next;\n"
-            "    list_head *prev;\n"
-            "};\n"
-            "}\n",
+            r"""
+#pragma once
+namespace linuxcpp {
+namespace abi {
+struct list_head {
+    list_head *next;
+    list_head *prev;
+};
+}
+}
+""",
             encoding="utf-8",
         )
         self.compile_and_run(r"""
@@ -162,7 +166,7 @@ int main()
 
 struct item {
     int value;
-    linuxcpp::list_head node;
+    linuxcpp::abi::list_head node;
 };
 
 int main()
@@ -207,33 +211,37 @@ int main()
     def test_more_wrappers(self):
         bindings = self.dir / "bindings.hpp"
         bindings.write_text(
-            "#pragma once\n"
-            "#include <stddef.h>\n"
-            "namespace linuxcpp {\n"
-            "struct hlist_node { hlist_node *next; hlist_node **pprev; };\n"
-            "struct hlist_head { hlist_node *first; };\n"
-            "struct timespec64 { long long tv_sec; long tv_nsec; };\n"
-            "struct kvec { void *iov_base; size_t iov_len; };\n"
-            "struct iovec { void *iov_base; size_t iov_len; };\n"
-            "struct completion { unsigned int done; };\n"
-            "typedef struct { int raw_lock; } spinlock_t;\n"
-            "typedef struct { int counter; } atomic_t;\n"
-            "void wait_for_completion(completion *);\n"
-            "void complete(completion *);\n"
-            "void complete_all(completion *);\n"
-            "}\n"
-            "extern \"C\" {\n"
-            "void lc_init_completion(linuxcpp::completion *);\n"
-            "void lc_spin_lock_init(linuxcpp::spinlock_t *);\n"
-            "void lc_spin_lock(linuxcpp::spinlock_t *);\n"
-            "void lc_spin_unlock(linuxcpp::spinlock_t *);\n"
-            "int lc_atomic_read(const linuxcpp::atomic_t *);\n"
-            "void lc_atomic_set(linuxcpp::atomic_t *, int);\n"
-            "void lc_atomic_add(int, linuxcpp::atomic_t *);\n"
-            "void lc_atomic_sub(int, linuxcpp::atomic_t *);\n"
-            "void lc_atomic_inc(linuxcpp::atomic_t *);\n"
-            "void lc_atomic_dec(linuxcpp::atomic_t *);\n"
-            "}\n",
+            r"""
+#pragma once
+#include <stddef.h>
+namespace linuxcpp {
+namespace abi {
+struct hlist_node { hlist_node *next; hlist_node **pprev; };
+struct hlist_head { hlist_node *first; };
+struct timespec64 { long long tv_sec; long tv_nsec; };
+struct kvec { void *iov_base; size_t iov_len; };
+struct iovec { void *iov_base; size_t iov_len; };
+struct completion { unsigned int done; };
+typedef struct { int raw_lock; } spinlock_t;
+typedef struct { int counter; } atomic_t;
+void wait_for_completion(completion *);
+void complete(completion *);
+void complete_all(completion *);
+}
+}
+extern "C" {
+void lc_init_completion(linuxcpp::abi::completion *);
+void lc_spin_lock_init(linuxcpp::abi::spinlock_t *);
+void lc_spin_lock(linuxcpp::abi::spinlock_t *);
+void lc_spin_unlock(linuxcpp::abi::spinlock_t *);
+int lc_atomic_read(const linuxcpp::abi::atomic_t *);
+void lc_atomic_set(linuxcpp::abi::atomic_t *, int);
+void lc_atomic_add(int, linuxcpp::abi::atomic_t *);
+void lc_atomic_sub(int, linuxcpp::abi::atomic_t *);
+void lc_atomic_inc(linuxcpp::abi::atomic_t *);
+void lc_atomic_dec(linuxcpp::abi::atomic_t *);
+}
+""",
             encoding="utf-8",
         )
         self.compile_and_run(r"""
@@ -248,27 +256,29 @@ int main()
 #include <stddef.h>
 
 extern "C" {
-void lc_init_completion(linuxcpp::completion *value) { value->done = 0; }
-void lc_spin_lock_init(linuxcpp::spinlock_t *value) { value->raw_lock = 0; }
-void lc_spin_lock(linuxcpp::spinlock_t *) {}
-void lc_spin_unlock(linuxcpp::spinlock_t *) {}
-int lc_atomic_read(const linuxcpp::atomic_t *value) { return value->counter; }
-void lc_atomic_set(linuxcpp::atomic_t *value, int v) { value->counter = v; }
-void lc_atomic_add(int v, linuxcpp::atomic_t *value) { value->counter += v; }
-void lc_atomic_sub(int v, linuxcpp::atomic_t *value) { value->counter -= v; }
-void lc_atomic_inc(linuxcpp::atomic_t *value) { ++value->counter; }
-void lc_atomic_dec(linuxcpp::atomic_t *value) { --value->counter; }
+void lc_init_completion(linuxcpp::abi::completion *value) { value->done = 0; }
+void lc_spin_lock_init(linuxcpp::abi::spinlock_t *value) { value->raw_lock = 0; }
+void lc_spin_lock(linuxcpp::abi::spinlock_t *) {}
+void lc_spin_unlock(linuxcpp::abi::spinlock_t *) {}
+int lc_atomic_read(const linuxcpp::abi::atomic_t *value) { return value->counter; }
+void lc_atomic_set(linuxcpp::abi::atomic_t *value, int v) { value->counter = v; }
+void lc_atomic_add(int v, linuxcpp::abi::atomic_t *value) { value->counter += v; }
+void lc_atomic_sub(int v, linuxcpp::abi::atomic_t *value) { value->counter -= v; }
+void lc_atomic_inc(linuxcpp::abi::atomic_t *value) { ++value->counter; }
+void lc_atomic_dec(linuxcpp::abi::atomic_t *value) { --value->counter; }
 }
 
 namespace linuxcpp {
+namespace abi {
 void wait_for_completion(completion *) {}
 void complete(completion *value) { ++value->done; }
 void complete_all(completion *value) { value->done = ~0u; }
 }
+}
 
 struct item {
     int value;
-    linuxcpp::hlist_node node;
+    linuxcpp::abi::hlist_node node;
 };
 
 int main()

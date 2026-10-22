@@ -5,6 +5,7 @@
 #include <linux/atomic.h>
 #include <linux/bug.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
@@ -14,6 +15,7 @@
 void *lc_kmalloc(size_t size);
 void lc_kfree(void *ptr);
 void lc_might_sleep(void);
+void *lc_this_module(void);
 void lc_printk(const char *fmt, ...);
 void lc_bug(void) __attribute__((noreturn));
 void lc_mutex_init(struct mutex *mutex);
@@ -43,6 +45,12 @@ void lc_kfree(void *ptr)
 void lc_might_sleep(void)
 {
 	might_sleep();
+}
+
+// C++ 侧拿不到 THIS_MODULE 宏；驱动注册要把当前模块的 owner 传给内核
+void *lc_this_module(void)
+{
+	return THIS_MODULE;
 }
 
 // C++ 的变参函数不能直接转发给 printk，用 vprintk 接住 va_list

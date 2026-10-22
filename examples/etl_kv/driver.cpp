@@ -11,9 +11,9 @@
 #include <etl/string.h>
 #include <etl/vector.h>
 
-using linuxcpp::iov_iter;
-using linuxcpp::kiocb;
-using linuxcpp::ssize_t;
+using linuxcpp::abi::iov_iter;
+using linuxcpp::abi::kiocb;
+using linuxcpp::abi::ssize_t;
 
 namespace {
 
@@ -92,10 +92,10 @@ ssize_t kv_read(kiocb *iocb, iov_iter *to)
 	if (pos >= length)
 		return 0;
 	ssize_t n = static_cast<ssize_t>(
-		linuxcpp::lc_copy_to_iter(g_output->data() + pos, length - pos, to));
+		linuxcpp::abi::lc_copy_to_iter(g_output->data() + pos, length - pos, to));
 	// copy_to_iter 返回 0 而用户缓冲区还有空间，说明目标地址不可写，不能当 EOF
 	if (n == 0 && to->count != 0)
-		return -linuxcpp::EFAULT;
+		return -linuxcpp::abi::EFAULT;
 	iocb->ki_pos += n;
 	return n;
 }
@@ -103,9 +103,9 @@ ssize_t kv_read(kiocb *iocb, iov_iter *to)
 ssize_t kv_write(kiocb *iocb, iov_iter *from)
 {
 	char buffer[128];
-	size_t total = linuxcpp::lc_copy_from_iter(buffer, sizeof(buffer), from);
+	size_t total = linuxcpp::abi::lc_copy_from_iter(buffer, sizeof(buffer), from);
 	if (total == 0)
-		return -linuxcpp::EFAULT;
+		return -linuxcpp::abi::EFAULT;
 
 	size_t length = total;
 	while (length > 0 && (buffer[length - 1] == '\n' || buffer[length - 1] == '\r'))
@@ -119,14 +119,14 @@ ssize_t kv_write(kiocb *iocb, iov_iter *from)
 	return static_cast<ssize_t>(total);
 }
 
-const linuxcpp::file_operations kv_fops = {
+const linuxcpp::abi::file_operations kv_fops = {
 	.owner = linuxcpp::this_module(),
 	.read_iter = kv_read,
 	.write_iter = kv_write,
 };
 
-linuxcpp::miscdevice kv_misc = {
-	.minor = linuxcpp::MISC_DYNAMIC_MINOR,
+linuxcpp::abi::miscdevice kv_misc = {
+	.minor = linuxcpp::abi::MISC_DYNAMIC_MINOR,
 	.name = LCPP_DEVICE_NAME,
 	.fops = &kv_fops,
 	.mode = LCPP_DEVICE_MODE,
@@ -140,7 +140,7 @@ int kv_init(void)
 	if (!g_lock || !g_lock->ok() || !g_store || !g_output)
 		goto fail;
 
-	if (linuxcpp::misc_register(&kv_misc) != 0)
+	if (linuxcpp::abi::misc_register(&kv_misc) != 0)
 		goto fail;
 	return 0;
 
@@ -148,12 +148,12 @@ fail:
 	g_output.reset();
 	g_store.reset();
 	g_lock.reset();
-	return -linuxcpp::ENOMEM;
+	return -linuxcpp::abi::ENOMEM;
 }
 
 void kv_exit(void)
 {
-	linuxcpp::misc_deregister(&kv_misc);
+	linuxcpp::abi::misc_deregister(&kv_misc);
 	g_output.reset();
 	g_store.reset();
 	g_lock.reset();

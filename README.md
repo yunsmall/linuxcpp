@@ -27,14 +27,18 @@ BTF (bpftool)              → 类型布局 → C/C++ 结构体镜像 + static_a
 核心库 (linuxcpp_thunks.c)  → 宏和初始化函数的手写 thunk
 ```
 
-C++ 代码只 include `linuxcpp.hpp`（需要 `Device` 时再 include `device.hpp`）和生成的 `bindings.hpp`，完全不碰内核头。
+C++ 代码只 include `linuxcpp.hpp`；需要字符设备时 include `device.hpp`，需要 bus/driver/platform 时 include `device_model.hpp`。生成的内核 ABI 镜像在 `linuxcpp::abi`，C++ 设备模型在 `linuxcpp::model`，完全不碰内核头。
 
 ## 特性
 
-- kbuild 风格：`MODULE_NAME`、`obj-m`、`$(MODULE_NAME)-y`、`ccflags-y`、`cxxflags-y`
+- kbuild 风格：`obj-m`、`<模块名>-y`、`ccflags-y`、`cxxflags-y`；对象名直接对应同名的 `.cpp`/`.c`
 - BTF 自动生成结构体镜像和前向声明，`layout_check.c` 在编译期校验布局
 - 自动处理 `.init_array`/`.fini_array`，全局构造/析构可用
 - 核心库提供 `linuxcpp::std` 下的容器、RAII、错误码和设备封装
+- 设备模型 C++ 面向对象层：`model::device` 基类，`char_device<D>` 的虚函数
+  就是 `file_operations`，只给派生类覆盖过的操作装 trampoline；`platform_device`/
+  `platform_driver`/`bus` 用继承和虚函数，能安全 RAII 的类型构造注册，driver
+  显式 `start()`/`stop()`
 - 可选内核版 libc++，作为独立的 `libcxx_runtime.ko` 加载；libc++ 源码由脚本自行下载，不随仓库分发
 - 推荐用 [ETL](https://github.com/ETLCPP/etl) 作为内核里的固定容量容器库（MIT，兼容 GPL-2.0-only）；CTRE、RapidJSON 等无 STL 库也需自行下载，见 `examples/README.md`
 
@@ -136,9 +140,10 @@ python3 linuxcpp/libcxx_port/update_libcxx.py
 |---|---|
 | [docs/build-system.md](docs/build-system.md) | module.toml 的 `[build]`、Makefile/kbuild、构建流程、内核升级 |
 | [docs/bindings.md](docs/bindings.md) | `roots`/`extern`/`thunk`/`macro`/`headers` 的分类和诊断 |
-| [docs/usage.md](docs/usage.md) | `driver.cpp` 写法、`Device` 对象、核心库、ETL |
+| [docs/usage.md](docs/usage.md) | `driver.cpp` 写法、继承 `misc_device<D>`、核心库、ETL |
 | [docs/libc.md](docs/libc.md) | 内核 C 库子集：支持范围、生成的头、malloc/qsort/printf、和内核头的关系 |
 | [docs/libcxx.md](docs/libcxx.md) | 共享 libc++ 运行库、限制、C 头 shim、CTRE |
+| [docs/device-model.md](docs/device-model.md) | device/driver/bus/class/platform/属性的 C++ 继承体系 |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 常见链接/加载错误、调试、编辑器集成、已知限制 |
 
 ## 示例
@@ -159,6 +164,8 @@ sudo rmmod hello_misc
 | `examples/ioctl_misc` | ioctl + `copy_from_user`/`copy_to_user` + `mutex` + 对象宏导出 |
 | `examples/two_devices` | 一个模块注册两个 misc 设备 |
 | `examples/kthread_demo` | 内核线程（非设备模块） |
+| `examples/device_model` | 自定义 bus/driver/device、platform 驱动/设备和 sysfs 属性 |
+| `examples/sensor_bus` | 抽象 sensor 接口 + 多重继承 + 自定义总线驱动 + 属性组 + misc 监控设备 |
 | `examples/etl_kv` | ETL 固定容量容器的内存键值存储（`echo` 写命令、`cat` 读结果） |
 | `examples/libc_demo` | 不用 libc++，直接使用 `malloc/qsort/strtol/snprintf/printf/time` |
 | `examples/std_demo` | libc++ 标准库覆盖面：容器、optional/variant/any、chrono、charconv 等 |

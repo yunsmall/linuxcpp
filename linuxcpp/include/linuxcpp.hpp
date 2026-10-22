@@ -19,6 +19,9 @@
 #include "std/string_view.hpp"
 #include "std/vector.hpp"
 
+// 生成的 ABI 镜像在 linuxcpp::abi；手写的 C++ 设备模型在 linuxcpp::model。
+// 两套名字必须显式写命名空间，不做 using-directive 兼容。
+
 // C++ 变参函数不能直接转发给 C 的 printk，核心库用 vprintk 做一层 thunk；
 // 这里用模板把参数原样传过去，调用方式和 printk 一致
 extern "C" void lc_printk(const char *fmt, ...);

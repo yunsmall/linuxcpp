@@ -18,6 +18,9 @@
   用 RapidJSON SAX 解析后按两格缩进重写回同一个文件；语法错误返回 `EINVAL`，
   超大文件返回 `EFBIG`。它显式用 `kernel_fpu_begin/end` 打开 FPU，并用固定
   分配器保证 FPU 区间内不会睡眠。
+- **用 C++ 继承写设备模型**：`device_model` 继承 `bus`、`bus_driver`、
+  `platform_driver` 和 `attribute`，实现 `match`/`probe`/`remove` 虚函数；
+  bus 和 device 构造注册、析构注销，driver 显式 `start()`/`stop()`。
 - **零动态分配的固定容量 KV**：`etl_kv` 用 ETL 容器实现内存键值存储，
   `echo` 写命令、`cat` 读结果，适合内存和延迟敏感的场景。
 - **不用 libc++ 也能用 C 库子集**：`libc_demo` 直接调用内核里的
@@ -110,6 +113,55 @@ sudo rmmod libcxx_runtime
 格式化结果比原文短时，尾部补空格保持文件大小不变，不依赖 truncate。
 `kernel_fpu_begin()` 只能在进程上下文调用，不能用于中断上下文；这是示例模块
 刻意展示的能力，真实驱动应优先避免在内核里解析 JSON。
+
+## device_model
+
+`examples/device_model` 演示设备模型的 C++ 继承：自定义 bus + bus_driver +
+generic_device、platform driver + platform device，以及 probe 时挂上的 sysfs
+属性。它只用 `linuxcpp` 自己的头，不需要 libc++ 或 ETL：
+
+```bash
+make -C examples/device_model -j6
+sudo insmod examples/device_model/device_model.ko
+python3 examples/device_model/test.py
+sudo rmmod device_model
+```
+
+`test.py` 会检查 `/sys/bus/lcpp_demo/devices/lcpp_demo0/demo`、platform 驱动和
+platform 设备都存在。细节见 [`docs/device-model.md`](../docs/device-model.md)。
+
+## sensor_bus
+
+`examples/sensor_bus` 是更完整的 C++ 面向对象示例：`sensor` 是纯虚业务接口，
+`sensor_device` 同时继承 `model::generic_device` 和 `sensor`，把接口指针放进
+`driver_data`；自定义总线的 `match()` 调用驱动的 `accepts()` 虚函数决定绑定；
+`sensor_driver` 用 `final` 的 `probe/remove` 做模板方法，派生驱动只实现
+`description()`。probe 时给每个设备挂一个 `attribute_group`，同时
+`/dev/sensor_monitor` 通过 `sensor` 接口读改所有传感器：
+
+```bash
+make -C examples/sensor_bus -j6
+sudo insmod examples/sensor_bus/sensor_bus.ko
+python3 examples/sensor_bus/test.py
+cat /dev/sensor_monitor
+echo "temp0 12345" | sudo tee /dev/sensor_monitor
+sudo rmmod sensor_bus
+```
+
+`test.py` 检查 bus、两个驱动、两个设备、sysfs 属性、`/sys/class/lcpp_sensor`
+和 misc 设备，并验证通过 `/dev/sensor_monitor` 修改传感器值。
+
+这个示例按职责拆成多个文件：`sensor.hpp/.cpp` 是业务接口和注册表，
+`sensor_device.*` 是设备，`drivers.*` 是总线和驱动，`monitor.*` 是 misc 设备，
+`driver.cpp` 只保留全局对象和模块入口。Makefile 按 kbuild 的方式显式列出对象：
+
+```make
+obj-m := sensor_bus.o
+sensor_bus-y := driver.o drivers.o monitor.o sensor.o sensor_device.o
+```
+
+构建器只按这个列表找同名 `.cpp`，不会扫描目录；新增文件时把对象加进
+`sensor_bus-y` 即可。
 
 ## ETL
 

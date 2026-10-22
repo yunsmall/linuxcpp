@@ -11,26 +11,26 @@ class hlist {
 public:
 	class iterator {
 	public:
-		explicit iterator(hlist_node* node = nullptr) : node_(node) {}
+		explicit iterator(abi::hlist_node* node = nullptr) : node_(node) {}
 		T& operator*() const { return *hlist::value_of(node_); }
 		T* operator->() const { return hlist::value_of(node_); }
 		iterator& operator++() { node_ = node_->next; return *this; }
 		bool operator==(const iterator& other) const { return node_ == other.node_; }
 		bool operator!=(const iterator& other) const { return node_ != other.node_; }
 	private:
-		hlist_node* node_;
+		abi::hlist_node* node_;
 	};
 
 	class const_iterator {
 	public:
-		explicit const_iterator(const hlist_node* node = nullptr) : node_(node) {}
+		explicit const_iterator(const abi::hlist_node* node = nullptr) : node_(node) {}
 		const T& operator*() const { return *hlist::value_of(node_); }
 		const T* operator->() const { return hlist::value_of(node_); }
 		const_iterator& operator++() { node_ = node_->next; return *this; }
 		bool operator==(const const_iterator& other) const { return node_ == other.node_; }
 		bool operator!=(const const_iterator& other) const { return node_ != other.node_; }
 	private:
-		const hlist_node* node_;
+		const abi::hlist_node* node_;
 	};
 
 	hlist() { head_.first = nullptr; }
@@ -42,9 +42,9 @@ public:
 
 	// 析构时清掉节点的 pprev，避免元素之后 erase() 写已释放的 head_
 	~hlist() {
-		hlist_node* node = head_.first;
+		abi::hlist_node* node = head_.first;
 		while (node != nullptr) {
-			hlist_node* next = node->next;
+			abi::hlist_node* next = node->next;
 			node->next = nullptr;
 			node->pprev = nullptr;
 			node = next;
@@ -54,7 +54,7 @@ public:
 	bool empty() const { return head_.first == nullptr; }
 
 	void push_front(T& value) {
-		hlist_node* node = node_of(value);
+		abi::hlist_node* node = node_of(value);
 		node->next = head_.first;
 		node->pprev = &head_.first;
 		if (head_.first != nullptr)
@@ -65,7 +65,7 @@ public:
 	// 节点必须已插入过（pprev 有效）或清零；未初始化的随机 pprev 会被当成
 	// “已插入”，随后写入野指针
 	bool erase(T& value) {
-		hlist_node* node = node_of(value);
+		abi::hlist_node* node = node_of(value);
 		if (node->pprev == nullptr)
 			return false;
 		if (node->next != nullptr)
@@ -85,18 +85,18 @@ public:
 	const_iterator end() const { return const_iterator(nullptr); }
 
 private:
-	hlist_head head_;
+	abi::hlist_head head_;
 
-	static hlist_node* node_of(T& value) {
-		return reinterpret_cast<hlist_node*>(reinterpret_cast<char*>(&value) + Offset);
+	static abi::hlist_node* node_of(T& value) {
+		return reinterpret_cast<abi::hlist_node*>(reinterpret_cast<char*>(&value) + Offset);
 	}
-	static const hlist_node* node_of(const T& value) {
-		return reinterpret_cast<const hlist_node*>(reinterpret_cast<const char*>(&value) + Offset);
+	static const abi::hlist_node* node_of(const T& value) {
+		return reinterpret_cast<const abi::hlist_node*>(reinterpret_cast<const char*>(&value) + Offset);
 	}
-	static T* value_of(hlist_node* node) {
+	static T* value_of(abi::hlist_node* node) {
 		return reinterpret_cast<T*>(reinterpret_cast<char*>(node) - Offset);
 	}
-	static const T* value_of(const hlist_node* node) {
+	static const T* value_of(const abi::hlist_node* node) {
 		return reinterpret_cast<const T*>(reinterpret_cast<const char*>(node) - Offset);
 	}
 };

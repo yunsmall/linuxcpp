@@ -75,7 +75,7 @@ bear -- make -C my_module -j6
 - **全量翻译不现实**：内核有几万个 static inline，按需绑定才是可维护的做法。
 - **模块 BTF**：pahole 处理 C++ 模板的 DWARF 会报错，构建器关闭了模块 BTF 生成（只影响 BPF 跟踪）。
 - **对齐**：`operator new` 现在支持 aligned 版本，但 `std::vector` 对超过 `__STDCPP_DEFAULT_NEW_ALIGNMENT__` 的元素仍会 static_assert；这种类型请自己分配内存再 placement new。
-- **设备所有权**：`misc_device` 不接管 `Device*`，Device 对象由用户自己管理；`name` 必须指向静态生命周期字符串。
+- **设备所有权**：`misc_device<D>` 由用户继承并持有，构造时注册、析构时注销；`name` 必须指向静态生命周期字符串。
 - **分配失败**：`operator new` 失败返回 `nullptr`，不抛异常；使用前要检查。`std::mutex` 的 handle 内嵌在对象里，没有创建失败路径，`ok()` 恒为 true 仅为兼容旧调用方。
 
 ## 许可证

@@ -8,12 +8,12 @@ namespace linuxcpp {
 namespace wrappers {
 
 extern "C" {
-int lc_atomic_read(const linuxcpp::atomic_t *value);
-void lc_atomic_set(linuxcpp::atomic_t *value, int v);
-void lc_atomic_add(int v, linuxcpp::atomic_t *value);
-void lc_atomic_sub(int v, linuxcpp::atomic_t *value);
-void lc_atomic_inc(linuxcpp::atomic_t *value);
-void lc_atomic_dec(linuxcpp::atomic_t *value);
+int lc_atomic_read(const linuxcpp::abi::atomic_t *value);
+void lc_atomic_set(linuxcpp::abi::atomic_t *value, int v);
+void lc_atomic_add(int v, linuxcpp::abi::atomic_t *value);
+void lc_atomic_sub(int v, linuxcpp::abi::atomic_t *value);
+void lc_atomic_inc(linuxcpp::abi::atomic_t *value);
+void lc_atomic_dec(linuxcpp::abi::atomic_t *value);
 }
 
 class atomic {
@@ -31,7 +31,7 @@ public:
 	void dec() { lc_atomic_dec(&value_); }
 
 private:
-	linuxcpp::atomic_t value_;
+	linuxcpp::abi::atomic_t value_;
 };
 
 } // namespace wrappers

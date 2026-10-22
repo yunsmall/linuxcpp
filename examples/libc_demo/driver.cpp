@@ -11,9 +11,9 @@
 #include <string.h>
 #include <time.h>
 
-using linuxcpp::iov_iter;
-using linuxcpp::kiocb;
-using linuxcpp::ssize_t;
+using linuxcpp::abi::iov_iter;
+using linuxcpp::abi::kiocb;
+using linuxcpp::abi::ssize_t;
 
 namespace {
 
@@ -35,20 +35,20 @@ ssize_t demo_read(kiocb *iocb, iov_iter *to)
 	if (pos >= length)
 		return 0;
 	ssize_t n = static_cast<ssize_t>(
-		linuxcpp::lc_copy_to_iter(g_message + pos, length - pos, to));
+		linuxcpp::abi::lc_copy_to_iter(g_message + pos, length - pos, to));
 	if (n == 0 && to->count != 0)
-		return -linuxcpp::EFAULT;
+		return -linuxcpp::abi::EFAULT;
 	iocb->ki_pos += n;
 	return n;
 }
 
-const linuxcpp::file_operations demo_fops = {
+const linuxcpp::abi::file_operations demo_fops = {
 	.owner = linuxcpp::this_module(),
 	.read_iter = demo_read,
 };
 
-linuxcpp::miscdevice demo_misc = {
-	.minor = linuxcpp::MISC_DYNAMIC_MINOR,
+linuxcpp::abi::miscdevice demo_misc = {
+	.minor = linuxcpp::abi::MISC_DYNAMIC_MINOR,
 	.name = LCPP_DEVICE_NAME,
 	.fops = &demo_fops,
 	.mode = LCPP_DEVICE_MODE,
@@ -67,7 +67,7 @@ int demo_init(void)
 	if (!values || !zeros) {
 		free(values);
 		free(zeros);
-		return -linuxcpp::ENOMEM;
+		return -linuxcpp::abi::ENOMEM;
 	}
 
 	values[0] = 5;
@@ -82,7 +82,7 @@ int demo_init(void)
 	if (!grown) {
 		free(values);
 		free(zeros);
-		return -linuxcpp::ENOMEM;
+		return -linuxcpp::abi::ENOMEM;
 	}
 	values = grown;
 
@@ -106,15 +106,15 @@ int demo_init(void)
 	free(values);
 	free(zeros);
 	if (result < 0)
-		return -linuxcpp::EINVAL;
+		return -linuxcpp::abi::EINVAL;
 
 	printf("libc_demo: printf through vprintk\n");
-	return linuxcpp::misc_register(&demo_misc);
+	return linuxcpp::abi::misc_register(&demo_misc);
 }
 
 void demo_exit(void)
 {
-	linuxcpp::misc_deregister(&demo_misc);
+	linuxcpp::abi::misc_deregister(&demo_misc);
 }
 
 }  // namespace

@@ -11,29 +11,34 @@ extern "C" int lc_format_json_fd(int fd);
 
 namespace {
 
-class JsonFormatDevice : public linuxcpp::Device {
+class JsonFormatDevice
+	: public linuxcpp::model::misc_device<JsonFormatDevice> {
 public:
-	long ioctl(linuxcpp::file *file, unsigned int cmd,
+	JsonFormatDevice()
+		: linuxcpp::model::misc_device<JsonFormatDevice>(LCPP_DEVICE_NAME,
+								 LCPP_DEVICE_MODE)
+	{
+	}
+
+	long ioctl(linuxcpp::abi::file *file, unsigned int cmd,
 		   unsigned long arg) override
 	{
 		(void)file;
 		if (cmd != LCPP_JSON_FORMAT)
-			return -linuxcpp::ENOTTY;
+			return -linuxcpp::abi::ENOTTY;
 		return lc_format_json_fd(static_cast<int>(arg));
 	}
 };
 
 JsonFormatDevice g_device;
-linuxcpp::misc_device g_misc(&g_device, LCPP_DEVICE_NAME, LCPP_DEVICE_MODE);
 
 int json_format_init(void)
 {
-	return g_misc.start();
+	return g_device ? 0 : g_device.error();
 }
 
 void json_format_exit(void)
 {
-	g_misc.stop();
 }
 
 }  // namespace

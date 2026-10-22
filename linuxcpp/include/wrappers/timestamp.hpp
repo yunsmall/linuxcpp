@@ -93,7 +93,7 @@ public:
 
 private:
 	enum : long long { NS_PER_SEC = 1000000000LL };
-	timespec64 ts_;
+	abi::timespec64 ts_;
 };
 
 } // namespace wrappers

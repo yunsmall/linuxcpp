@@ -38,6 +38,7 @@ MANUAL_THUNK_FUNCS = [
     "void *lc_kmalloc(size_t size);",
     "void lc_kfree(void *ptr);",
     "void lc_might_sleep(void);",
+    "void *lc_this_module(void);",
 ]
 
 # 核心库和用户代码都常用的对象宏，总是从内核头导出，值不做假设

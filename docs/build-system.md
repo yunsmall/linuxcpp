@@ -29,11 +29,11 @@ thunk = ["copy_to_iter", "copy_from_iter", "copy_from_user", "copy_to_user"]
 
 `roots`/`extern`/`thunk` 是增量，核心库 `linuxcpp.cpp`/`device.cpp` 需要的类型和 misc 注册函数始终会带上，用户写的名字只做追加。`roots` 也不是完整类型列表：生成器沿 BTF 递归求依赖闭包，字段需要的类型生成完整定义，指针参数需要的类型生成前向声明。只写 `file`，`inode`、`dentry`、`path`、`file_operations` 等也会自动出现。想用 `task_struct`、`tty_struct` 之类，把名字直接加进 `roots` 即可；头文件只在解析 `extern` 导出函数、`thunk` 的 static inline 定义和 `macro` 时才会用到。
 
-常用 errno（`EPERM`、`EINVAL`、`ENOTTY` 等）默认就会导出成 `linuxcpp::EINVAL`，不用手写。
+常用 errno（`EPERM`、`EINVAL`、`ENOTTY` 等）默认就会导出成 `linuxcpp::abi::EINVAL`，不用手写。
 
 ## 模块 Makefile
 
-自动生成的入口 Makefile 只做声明；直接 `make` 时转交给 `linuxcpp/Makefile` 这个 driver：
+模块 Makefile 用和 kbuild 一样的 `obj-m` / `<模块名>-y` 声明最终模块和对象列表；直接 `make` 时转交给 `linuxcpp/Makefile` 这个 driver：
 
 ```bash
 make -C ../linuxcpp M=$(pwd)
@@ -41,7 +41,7 @@ make -C ../linuxcpp M=$(pwd)
 
 driver 设置 `LINUXCPP_BUILD=1` 后再 include 模块 Makefile，模块文件据此跳过自己的 `all`/`clean`，目标和规则的所有权始终在 driver 这边，不会出现两个 `clean` 互相覆盖。之后在模块目录直接 `make -j6` 即可。C++ 对象用 `-MMD -MP` 跟踪头文件依赖，C++ 对象和 kbuild 的 C 对象都由 make 并行调度。只想生成构建文件、不立刻编译时用 `--prepare-only`，它会打印对应的 `make` 命令。清理用 `make clean` 或 `python3 ../linuxcpp/python/build.py . --clean`。
 
-手写 Makefile 用同样的约定：直接 make 的分支里写自己的 `all`/`clean`，被 driver include 的分支里只放声明。`build.py` 不会覆盖没有自动生成标记的 `Makefile`：
+Makefile 归用户维护：目录里没有 Makefile 时 `build.py` 初始化一份，之后不再覆盖。直接 make 的分支里写自己的 `all`/`clean`，被 driver include 的分支里只放声明：
 
 ```make
 KDIR ?= /lib/modules/$(shell uname -r)/build
@@ -55,17 +55,22 @@ clean:
 	$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" clean
 	rm -f my_extra_file
 else
-MODULE_NAME := mymodule
-obj-m := $(MODULE_NAME).o
-$(MODULE_NAME)-y := driver.o extra.o
+obj-m := mymodule.o
+mymodule-y := driver.o extra.o
 ccflags-y += -DXXX
 cxxflags-y += -DYYY
 endif
 ```
 
-`all`/`clean` 在 `ifeq ($(LINUXCPP_BUILD),)` 分支里，driver include 时看不到它们，所以可以在调用完公共 clean 后追加自己的清理命令。公共规则会把 `lcpp_ctors_start.o` 到 `lcpp_ctors_end.o` 的核心对象按正确顺序插进 `$(MODULE_NAME)-y`，你追加的对象会参与最终链接。
+`all`/`clean` 在 `ifeq ($(LINUXCPP_BUILD),)` 分支里，driver include 时看不到它们，所以可以在调用完公共 clean 后追加自己的清理命令。公共规则会把 `lcpp_ctors_start.o` 到 `lcpp_ctors_end.o` 的核心对象按正确顺序插进 `<模块名>-y`，你追加的对象会参与最终链接。
 
-`obj-m` 和 kbuild/Rust 一样始终是最终模块的聚合对象（`.o`），不是源文件；C++ 源文件编译出的 `.o` 放在 `$(MODULE_NAME)-y` 里。Rust 的单文件模块写 `obj-m := foo.o`，多文件模块写 `foo-y := a.o b.o`，和这里的结构一致。
+`obj-m` 和 kbuild 一样始终是最终模块的聚合对象（`.o`），不是源文件；C++ 源文件编译出的 `.o` 放在 `<模块名>-y` 里。对象名对应源文件名：`driver.o` 找 `driver.cpp` 或 `driver.c`，`hello.o` 找 `hello.cpp` 或 `hello.c`。构建器不扫描目录，没有列进 `<模块名>-y` 的源文件不会参与构建；新增 `hello.cpp` 就把它加到列表里：
+
+```make
+sensor_bus-y := driver.o hello.o
+```
+
+`examples/sensor_bus` 就是按接口、设备、驱动、监控设备拆成多个 `.cpp`，并在 Makefile 里显式列出对象的例子。
 
 ## 构建流程
 

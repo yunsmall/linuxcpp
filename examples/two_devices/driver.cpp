@@ -4,9 +4,9 @@
 
 #include "linuxcpp.hpp"
 
-using linuxcpp::iov_iter;
-using linuxcpp::kiocb;
-using linuxcpp::ssize_t;
+using linuxcpp::abi::iov_iter;
+using linuxcpp::abi::kiocb;
+using linuxcpp::abi::ssize_t;
 
 static ssize_t a_read(kiocb *iocb, iov_iter *to)
 {
@@ -17,10 +17,10 @@ static ssize_t a_read(kiocb *iocb, iov_iter *to)
 	if (pos >= length)
 		return 0;
 	ssize_t n = static_cast<ssize_t>(
-		linuxcpp::lc_copy_to_iter(message + pos, length - pos, to));
+		linuxcpp::abi::lc_copy_to_iter(message + pos, length - pos, to));
 	// copy_to_iter 返回 0 而用户缓冲区还有空间，说明目标地址不可写，不能当 EOF
 	if (n == 0 && to->count != 0)
-		return -linuxcpp::EFAULT;
+		return -linuxcpp::abi::EFAULT;
 	iocb->ki_pos += n;
 	return n;
 }
@@ -34,33 +34,33 @@ static ssize_t b_read(kiocb *iocb, iov_iter *to)
 	if (pos >= length)
 		return 0;
 	ssize_t n = static_cast<ssize_t>(
-		linuxcpp::lc_copy_to_iter(message + pos, length - pos, to));
+		linuxcpp::abi::lc_copy_to_iter(message + pos, length - pos, to));
 	// copy_to_iter 返回 0 而用户缓冲区还有空间，说明目标地址不可写，不能当 EOF
 	if (n == 0 && to->count != 0)
-		return -linuxcpp::EFAULT;
+		return -linuxcpp::abi::EFAULT;
 	iocb->ki_pos += n;
 	return n;
 }
 
-static const linuxcpp::file_operations a_fops = {
+static const linuxcpp::abi::file_operations a_fops = {
 	.owner = linuxcpp::this_module(),
 	.read_iter = a_read,
 };
 
-static const linuxcpp::file_operations b_fops = {
+static const linuxcpp::abi::file_operations b_fops = {
 	.owner = linuxcpp::this_module(),
 	.read_iter = b_read,
 };
 
-static linuxcpp::miscdevice a_misc = {
-	.minor = linuxcpp::MISC_DYNAMIC_MINOR,
+static linuxcpp::abi::miscdevice a_misc = {
+	.minor = linuxcpp::abi::MISC_DYNAMIC_MINOR,
 	.name = "two_a",
 	.fops = &a_fops,
 	.mode = 0666,
 };
 
-static linuxcpp::miscdevice b_misc = {
-	.minor = linuxcpp::MISC_DYNAMIC_MINOR,
+static linuxcpp::abi::miscdevice b_misc = {
+	.minor = linuxcpp::abi::MISC_DYNAMIC_MINOR,
 	.name = "two_b",
 	.fops = &b_fops,
 	.mode = 0666,
@@ -68,12 +68,12 @@ static linuxcpp::miscdevice b_misc = {
 
 static int two_init(void)
 {
-	int ret = linuxcpp::misc_register(&a_misc);
+	int ret = linuxcpp::abi::misc_register(&a_misc);
 	if (ret != 0)
 		return ret;
-	ret = linuxcpp::misc_register(&b_misc);
+	ret = linuxcpp::abi::misc_register(&b_misc);
 	if (ret != 0) {
-		linuxcpp::misc_deregister(&a_misc);
+		linuxcpp::abi::misc_deregister(&a_misc);
 		return ret;
 	}
 	return 0;
@@ -81,8 +81,8 @@ static int two_init(void)
 
 static void two_exit(void)
 {
-	linuxcpp::misc_deregister(&b_misc);
-	linuxcpp::misc_deregister(&a_misc);
+	linuxcpp::abi::misc_deregister(&b_misc);
+	linuxcpp::abi::misc_deregister(&a_misc);
 }
 
 LCPP_MODULE_RAW(two_init, two_exit)

@@ -7,6 +7,19 @@
 #include "bindings.hpp"
 #include "placement_new.hpp"
 
+extern "C" void lc_bug(void) __attribute__((noreturn));
+
+#ifndef LCPP_USE_LIBCXX
+// 纯虚函数被调用说明对象已经析构，或者类型转换有 bug。内核里没有异常可抛，
+// 直接 BUG 留下调用栈。使用 libc++ 时由运行库的 runtime.cpp 提供同一入口。
+extern "C" void __cxa_pure_virtual(void);
+
+extern "C" void __cxa_pure_virtual(void)
+{
+	lc_bug();
+}
+#endif
+
 // GCC 下 noexcept 让分配失败时把 nullptr 原样返回；clang 认为全局 operator new
 // 的内置声明带 throw(bad_alloc)，替换版本再写 noexcept 会冲突，
 // 而 -fno-exceptions 下 clang 失败时同样返回 nullptr，所以只在 GCC 下加
@@ -36,8 +49,8 @@ void *alloc_aligned(size_t size, size_t align)
 	if (size > static_cast<size_t>(-1) - align - sizeof(void *))
 		return nullptr;
 
-	linuxcpp::lc_might_sleep();
-	void *raw = linuxcpp::lc_kmalloc(size + align + sizeof(void *));
+	linuxcpp::abi::lc_might_sleep();
+	void *raw = linuxcpp::abi::lc_kmalloc(size + align + sizeof(void *));
 	if (raw == nullptr)
 		return nullptr;
 
@@ -50,7 +63,7 @@ void *alloc_aligned(size_t size, size_t align)
 void free_aligned(void *ptr)
 {
 	if (ptr != nullptr)
-		linuxcpp::lc_kfree(reinterpret_cast<void **>(ptr)[-1]);
+		linuxcpp::abi::lc_kfree(reinterpret_cast<void **>(ptr)[-1]);
 }
 
 }  // namespace

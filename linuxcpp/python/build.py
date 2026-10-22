@@ -45,6 +45,40 @@ DEFAULTS = {
     "packed": [],
 }
 
+# C++ 设备模型只需要这些类型和导出函数；模块用 preset 一行带进来，
+# 不用自己维护一长串 roots/extern。
+BINDING_PRESETS = {
+    "device_model": {
+        "roots": [
+            "device", "device_driver", "bus_type", "class", "device_type",
+            "device_attribute", "attribute", "attribute_group",
+            "platform_device", "platform_driver", "resource",
+        ],
+        "extern": [
+            "device_register", "device_unregister", "device_initialize",
+            "get_device", "put_device",
+            "driver_register", "driver_unregister",
+            "bus_register", "bus_unregister",
+            "class_register", "class_unregister",
+            "platform_device_alloc", "platform_device_add",
+            "platform_device_put", "platform_device_unregister",
+            "__platform_driver_register", "platform_driver_unregister",
+            "device_create_file", "device_remove_file",
+            "sysfs_create_group", "sysfs_remove_group", "sysfs_emit",
+        ],
+        "thunk": [],
+        "macro": ["PAGE_SIZE"],
+        "headers": [
+            "linux/device.h", "linux/device/bus.h", "linux/device/class.h",
+            "linux/device/driver.h", "linux/platform_device.h", "linux/sysfs.h",
+        ],
+    },
+}
+
+
+def merge_unique(*groups):
+    return list(dict.fromkeys(item for group in groups for item in group))
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="构建 linuxcpp C++ 内核模块")
@@ -65,7 +99,8 @@ def parse_args():
 
 
 def run(args, cwd=None):
-    print("+", " ".join(args))
+    # 绑定参数可能有几十个 --root/--extern，整行打印会把终端刷满；
+    # 生成器自己会打印统计，出错时 subprocess 的输出仍然可见
     subprocess.run(args, check=True, cwd=cwd)
 
 
@@ -79,6 +114,11 @@ def load_config(module_dir):
     module_cfg = data.get("module", {})
     device_cfg = data.get("device", {})
     bindings_cfg = data.get("bindings", {})
+    build_cfg = data.get("build", {})
+    preset_name = bindings_cfg.get("preset")
+    preset = BINDING_PRESETS.get(preset_name, {})
+    if preset_name and not preset:
+        sys.exit(f"未知的绑定 preset: {preset_name}")
 
     config = {
         "name": module_cfg.get("name", DEFAULTS["name"]),
@@ -90,17 +130,23 @@ def load_config(module_dir):
         "device": device_cfg.get("name", DEFAULTS["device"]),
         "mode": device_cfg.get("mode", DEFAULTS["mode"]),
         # 核心库 linuxcpp.cpp 总要编译，它依赖这些类型和 misc 注册函数，不能省
-        "roots": list(dict.fromkeys(DEFAULTS["roots"] + bindings_cfg.get("roots", []))),
-        "extern": list(dict.fromkeys(DEFAULTS["extern"] + bindings_cfg.get("extern", []))),
-        "thunk": list(dict.fromkeys(DEFAULTS["thunk"] + bindings_cfg.get("thunk", []))),
-        "macro": bindings_cfg.get("macro", DEFAULTS["macro"]),
-        "headers": bindings_cfg.get("headers", DEFAULTS["headers"]),
+        "preset": preset_name or "",
+        "roots": merge_unique(DEFAULTS["roots"], preset.get("roots", []),
+                              bindings_cfg.get("roots", [])),
+        "extern": merge_unique(DEFAULTS["extern"], preset.get("extern", []),
+                               bindings_cfg.get("extern", [])),
+        "thunk": merge_unique(DEFAULTS["thunk"], preset.get("thunk", []),
+                              bindings_cfg.get("thunk", [])),
+        "macro": merge_unique(DEFAULTS["macro"], preset.get("macro", []),
+                              bindings_cfg.get("macro", [])),
+        "headers": merge_unique(DEFAULTS["headers"], preset.get("headers", []),
+                                bindings_cfg.get("headers", [])),
         # 自动修复兜不住时，用户仍可以按名字强制标 packed
         "packed": bindings_cfg.get("packed", DEFAULTS["packed"]),
-        "cxx_includes": data.get("build", {}).get("cxx_includes", []),
-        "cxx_flags": data.get("build", {}).get("cxx_flags", []),
+        "cxx_includes": build_cfg.get("cxx_includes", []),
+        "cxx_flags": build_cfg.get("cxx_flags", []),
         # 默认跟随 kbuild 的编译器；填了就用指定值（例如内核 GCC、C++ 用 clang++）
-        "cxx": data.get("build", {}).get("cxx", ""),
+        "cxx": build_cfg.get("cxx", ""),
     }
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", config["name"]):
         sys.exit(f"模块名不合法: {config['name']}")
@@ -237,6 +283,8 @@ def generate_sources(module_dir, config):
     for name in ("lcpp_ctors.c", "lcpp_ctors_start.c", "lcpp_ctors_end.c"):
         copy_if_changed(SRC_DIR / name, module_dir / name)
 
+    # 第一次生成 Makefile 时按目录内容给出初始对象列表；之后的增删由用户
+    # 直接改 Makefile 的 $(MODULE_NAME)-y，不再扫描目录
     user_objs = [path.stem + ".o" for path in sorted(module_dir.glob("*.cpp"))
                  if path.stem not in {"linuxcpp", "device"}]
     # 模块自己的 C thunk 也要编译；生成的文件已经单独加入，不能重复
@@ -429,9 +477,9 @@ clean:
 \t$(MAKE) -C $(LINUXCPP) M=$(CURDIR) KDIR="$(KDIR)" PYTHON="$(PYTHON)" clean
 
 else
-MODULE_NAME := {name}
-obj-m := $(MODULE_NAME).o
-$(MODULE_NAME)-y := driver.o
+# 和 kbuild 一样声明最终模块和对象列表；新增源文件直接改 {name}-y
+obj-m := {name}.o
+{name}-y := driver.o
 LCPP_ENTRY_OBJ := entry_gen.o
 
 # C 库子集独立于 libc++；不用 libc++ 也可以直接用 <string.h>/<stdlib.h> 等
@@ -479,14 +527,9 @@ def main():
 
     jobs = args.jobs if args.jobs is not None else min(6, os.cpu_count() or 1)
 
-    # 第一次构建先生成 Makefile；旧版自动生成、直接 include 公共文件的 Makefile
-    # 迁移到 driver 模式。手写 Makefile 不碰，由它自己的目标驱动。
+    # Makefile 只在缺失时初始化一次；已有 Makefile 归用户维护，build.py 不覆盖
     makefile = module_dir / "Makefile"
     needs_prepare = not makefile.exists()
-    if not needs_prepare:
-        text = makefile.read_text(encoding="utf-8")
-        needs_prepare = ("由 build.py 自动生成" in text
-                         and "LINUXCPP_BUILD" not in text)
     if args.prepare_only or needs_prepare:
         prepare(module_dir, config, args.kdir)
     if args.prepare_only:

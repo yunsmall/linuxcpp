@@ -48,7 +48,7 @@ KBUILD_EXTRA_SYMBOLS := $(LINUXCPP)/runtime/Module.symvers
 - 找不到声明：可能是函数宏，只能在模块目录的 `.c` 文件里手写包装
 - 只有声明、没有定义：不能生成 thunk；如果它其实是导出函数，应该放到 `extern`
 
-`thunk` 生成的 C++ 函数名带 `lc_` 前缀，例如 `linuxcpp::lc_copy_to_iter`。
+`thunk` 生成的 C++ 函数名带 `lc_` 前缀，例如 `linuxcpp::abi::lc_copy_to_iter`。
 
 ## macro：对象宏
 

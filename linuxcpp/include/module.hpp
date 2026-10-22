@@ -7,16 +7,13 @@
 #include "bindings.hpp"
 
 // 对应 C 的 THIS_MODULE；file_operations.owner 直接用它
-struct module;
 extern "C" struct module __this_module;
 
 namespace linuxcpp {
 
-struct module;
-
-inline module *this_module()
+inline abi::module *this_module()
 {
-	return reinterpret_cast<module *>(&__this_module);
+	return reinterpret_cast<abi::module *>(&__this_module);
 }
 
 }  // namespace linuxcpp

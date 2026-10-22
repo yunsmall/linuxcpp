@@ -9,11 +9,11 @@
 namespace linuxcpp {
 namespace std {
 
-// 内核错误指针的范围是 [-MAX_ERRNO, -1]，MAX_ERRNO 从内核头导出
+// 内核错误指针的范围是 [-abi::MAX_ERRNO, -1]，MAX_ERRNO 从内核头导出
 template <typename T>
 inline bool is_error(T *ptr)
 {
-	return reinterpret_cast<unsigned long>(ptr) >= static_cast<unsigned long>(-MAX_ERRNO);
+	return reinterpret_cast<unsigned long>(ptr) >= static_cast<unsigned long>(-abi::MAX_ERRNO);
 }
 
 template <typename T>

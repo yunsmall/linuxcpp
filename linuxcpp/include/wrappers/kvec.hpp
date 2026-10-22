@@ -23,7 +23,7 @@ public:
 	size_t size() const { return value.iov_len; }
 	bool empty() const { return value.iov_len == 0; }
 
-	linuxcpp::kvec value;
+	linuxcpp::abi::kvec value;
 };
 
 class iovec {
@@ -43,7 +43,7 @@ public:
 	size_t size() const { return value.iov_len; }
 	bool empty() const { return value.iov_len == 0; }
 
-	linuxcpp::iovec value;
+	linuxcpp::abi::iovec value;
 };
 
 } // namespace wrappers

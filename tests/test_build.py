@@ -56,6 +56,39 @@ class BuildTest(unittest.TestCase):
             self.assertEqual(config["cxx"], "clang++-22")
             self.assertEqual(config["roots"], build.DEFAULTS["roots"])
 
+    def test_device_model_preset_merges(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "module.toml"
+            path.write_text(
+                '[module]\nname = "demo"\n[bindings]\n'
+                'preset = "device_model"\n'
+                'roots = ["extra_type"]\n'
+                'extern = ["extra_func"]\n'
+                'macro = ["EXTRA_MACRO"]\n'
+                'headers = ["linux/extra.h"]\n',
+                encoding="utf-8")
+            config = build.load_config(Path(tmp))
+            self.assertEqual(config["preset"], "device_model")
+            for name in ("device", "bus_type", "platform_driver"):
+                self.assertIn(name, config["roots"])
+            self.assertIn("extra_type", config["roots"])
+            self.assertIn("device_register", config["extern"])
+            self.assertIn("platform_device_put", config["extern"])
+            self.assertIn("extra_func", config["extern"])
+            self.assertIn("PAGE_SIZE", config["macro"])
+            self.assertIn("EXTRA_MACRO", config["macro"])
+            self.assertIn("linux/device.h", config["headers"])
+            self.assertIn("linux/extra.h", config["headers"])
+
+    def test_unknown_preset_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "module.toml"
+            path.write_text(
+                '[module]\nname = "demo"\n[bindings]\npreset = "nope"\n',
+                encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                build.load_config(Path(tmp))
+
     @staticmethod
     def module_config(entry=""):
         return {
@@ -115,12 +148,23 @@ class BuildTest(unittest.TestCase):
             makefile = (module / "Makefile").read_text(encoding="utf-8")
             driver = (module / "driver.cpp").read_text(encoding="utf-8")
             self.assertIn('name = "my_module"', toml)
-            self.assertIn("MODULE_NAME := my_module", makefile)
+            self.assertIn("obj-m := my_module.o", makefile)
+            self.assertIn("my_module-y := driver.o", makefile)
             self.assertIn("include $(LINUXCPP)/libcxx.mk", makefile)
             self.assertIn("LCPP_MODULE_RAW", driver)
             # 第二次创建必须拒绝，不能覆盖用户已经改过的文件
             with self.assertRaises(SystemExit):
                 build.init_module(module)
+
+    def test_existing_makefile_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            module = Path(tmp)
+            makefile = module / "Makefile"
+            original = "obj-m := keep.o\nkeep-y := keep.o\n"
+            makefile.write_text(original, encoding="utf-8")
+            build.write_makefile(module, {"name": "demo"}, "/k",
+                                 "entry_gen.o", ["driver.o"])
+            self.assertEqual(makefile.read_text(encoding="utf-8"), original)
 
     def test_init_rejects_invalid_name(self):
         with tempfile.TemporaryDirectory() as tmp:

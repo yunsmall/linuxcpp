@@ -11,10 +11,10 @@ namespace std {
 
 // 实现在 linuxcpp_thunks.c；对象直接内嵌 struct mutex，不做堆分配
 extern "C" {
-void lc_mutex_init(linuxcpp::mutex *mutex);
-void lc_mutex_destroy(linuxcpp::mutex *mutex);
-void lc_mutex_lock(linuxcpp::mutex *mutex);
-void lc_mutex_unlock(linuxcpp::mutex *mutex);
+void lc_mutex_init(linuxcpp::abi::mutex *mutex);
+void lc_mutex_destroy(linuxcpp::abi::mutex *mutex);
+void lc_mutex_lock(linuxcpp::abi::mutex *mutex);
+void lc_mutex_unlock(linuxcpp::abi::mutex *mutex);
 }
 
 class mutex {
@@ -34,7 +34,7 @@ public:
 	void unlock() noexcept { lc_mutex_unlock(&handle_); }
 
 private:
-	linuxcpp::mutex handle_;
+	linuxcpp::abi::mutex handle_;
 };
 
 class lock_guard {

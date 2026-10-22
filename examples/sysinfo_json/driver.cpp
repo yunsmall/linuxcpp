@@ -16,9 +16,9 @@
 #include <cstring>
 #include <string>
 
-using linuxcpp::iov_iter;
-using linuxcpp::kiocb;
-using linuxcpp::ssize_t;
+using linuxcpp::abi::iov_iter;
+using linuxcpp::abi::kiocb;
+using linuxcpp::abi::ssize_t;
 
 namespace {
 
@@ -111,9 +111,15 @@ std::string build_json()
 	return result;
 }
 
-class SysinfoDevice : public linuxcpp::Device {
+class SysinfoDevice : public linuxcpp::model::misc_device<SysinfoDevice> {
 public:
-	int open(linuxcpp::file *file) override
+	SysinfoDevice()
+		: linuxcpp::model::misc_device<SysinfoDevice>(LCPP_DEVICE_NAME,
+							     LCPP_DEVICE_MODE)
+	{
+	}
+
+	int open(linuxcpp::abi::file *file) override
 	{
 		(void)file;
 		linuxcpp::std::lock_guard guard(mutex_);
@@ -132,9 +138,9 @@ public:
 		size_t remaining = json_.size() - position;
 		size_t length = remaining < to->count ? remaining : to->count;
 		ssize_t copied = static_cast<ssize_t>(
-			linuxcpp::lc_copy_to_iter(json_.data() + position, length, to));
+			linuxcpp::abi::lc_copy_to_iter(json_.data() + position, length, to));
 		if (copied <= 0 && length != 0)
-			return -linuxcpp::EFAULT;
+			return -linuxcpp::abi::EFAULT;
 		iocb->ki_pos += copied;
 		return copied;
 	}
@@ -145,16 +151,14 @@ private:
 };
 
 SysinfoDevice g_device;
-linuxcpp::misc_device g_misc(&g_device, LCPP_DEVICE_NAME, LCPP_DEVICE_MODE);
 
 int sysinfo_init(void)
 {
-	return g_misc.start();
+	return g_device ? 0 : g_device.error();
 }
 
 void sysinfo_exit(void)
 {
-	g_misc.stop();
 }
 
 }  // namespace

@@ -34,8 +34,10 @@ kernel headers (libclang) -> exported declarations, C thunks for static inline c
 core library              -> hand-written thunks for macros and initializers
 ```
 
-C++ code only includes `linuxcpp.hpp` (plus `device.hpp` for `Device`) and the
-generated `bindings.hpp`. It never includes kernel headers.
+C++ code only includes `linuxcpp.hpp`, plus `device.hpp` for character/misc
+devices or `device_model.hpp` for bus/driver/platform wrappers. Generated kernel
+ABI mirrors live in `linuxcpp::abi`; the C++ device model lives in
+`linuxcpp::model`. Kernel headers are never included.
 
 Bindings are configured in `module.toml`:
 
@@ -51,14 +53,18 @@ they need a C thunk or a small `constexpr` reimplementation.
 
 ## Features
 
-- kbuild-style module Makefiles: `MODULE_NAME`, `obj-m`,
-  `$(MODULE_NAME)-y`, `ccflags-y`, `cxxflags-y`
+- kbuild-style module Makefiles: `obj-m`, `<module>-y`, `ccflags-y`,
+  `cxxflags-y`; object names map directly to `.cpp`/`.c` files
 - BTF-generated struct mirrors and forward declarations; `layout_check.c`
   verifies every generated layout with `_Static_assert`
 - automatic `.init_array`/`.fini_array` handling, so global constructors and
   destructors work
-- a small `linuxcpp::std` layer with containers, RAII wrappers, error helpers,
-  and a `misc_device` abstraction
+- a small `linuxcpp::std` layer with containers, RAII wrappers, and error helpers
+- an object-oriented device model: `model::device` is the base class,
+  `char_device<D>` virtuals are `file_operations` and only overridden operations
+  get a trampoline; `platform_device`, `platform_driver`, and `bus` use real
+  inheritance and virtual callbacks; safe types register in constructors, while
+  drivers use explicit `start()`/`stop()`
 - an optional kernel build of libc++ as a separate `libcxx_runtime.ko`; the
   libc++ sources are downloaded on demand and are not distributed with the repo
 - an optional kernel C library subset (`libc_port`) that works with or without
@@ -185,9 +191,10 @@ The detailed documents are currently in Chinese:
 |---|---|
 | [docs/build-system.md](docs/build-system.md) | `module.toml` `[build]`, Makefile/kbuild, build flow, kernel upgrades |
 | [docs/bindings.md](docs/bindings.md) | `roots`/`extern`/`thunk`/`macro`/`headers` and diagnostics |
-| [docs/usage.md](docs/usage.md) | `driver.cpp`, `Device`, core library, ETL |
+| [docs/usage.md](docs/usage.md) | `driver.cpp`, inheriting `misc_device<D>`, core library, ETL |
 | [docs/libc.md](docs/libc.md) | kernel C library subset and generated headers |
 | [docs/libcxx.md](docs/libcxx.md) | shared libc++ runtime, limitations, CTRE |
+| [docs/device-model.md](docs/device-model.md) | C++ inheritance hierarchy for device/driver/bus/class/platform/attributes |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | link/load errors, debugging, editor setup |
 
 ## Examples
@@ -208,6 +215,8 @@ sudo rmmod hello_misc
 | `examples/ioctl_misc` | ioctl, `copy_from_user`/`copy_to_user`, mutex, object-macro export |
 | `examples/two_devices` | two misc devices in one module |
 | `examples/kthread_demo` | kernel thread (non-device module) |
+| `examples/device_model` | custom bus/driver/device, platform driver/device, sysfs attribute |
+| `examples/sensor_bus` | abstract sensor interface, multiple inheritance, custom bus drivers, attribute group, misc monitor |
 | `examples/etl_kv` | in-memory key-value store using ETL fixed-capacity containers |
 | `examples/libc_demo` | C library subset without libc++ (`malloc/qsort/strtol/snprintf/printf/time`) |
 | `examples/std_demo` | libc++ coverage: containers, optional/variant/any, chrono, charconv |

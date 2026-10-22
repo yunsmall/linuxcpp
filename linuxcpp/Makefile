@@ -26,8 +26,20 @@ include $(M)/Makefile
 # 模块声明里就算有别的目标，默认目标也必须是构建模块
 .DEFAULT_GOAL := all
 
-MODULE_NAME ?= $(notdir $(M))
-obj-m := $(MODULE_NAME).o
+# 和 kbuild 一样，模块 Makefile 用 obj-m 声明最终模块，构建器不按目录名猜
+ifneq ($(words $(obj-m)),1)
+$(error 模块 Makefile 必须用 obj-m := <模块名>.o 声明一个模块)
+endif
+MODULE_NAME := $(patsubst %.o,%,$(obj-m))
+ifeq ($(strip $(MODULE_NAME)),)
+$(error obj-m 必须以 .o 结尾)
+endif
+
+# 对象列表必须写在模块 Makefile 的 <模块名>-y 里；构建器不会扫描目录补全，
+# driver.o 对应 driver.cpp 或 driver.c
+ifeq ($(strip $($(MODULE_NAME)-y)),)
+$(error 模块 Makefile 必须用 $(MODULE_NAME)-y := 对象列表 声明源文件)
+endif
 
 # 自定义入口由模块 Makefile 覆盖；默认是 build.py 生成的 C 入口
 LCPP_ENTRY_OBJ ?= entry_gen.o
@@ -44,10 +56,6 @@ LIBCXX_UPSTREAM_OBJS := libcxx_any.o libcxx_bind.o \
 	libcxx_variant.o libcxx_vector.o
 LCPP_LIBCXX_OBJS := $(if $(LCPP_LIBCXX),$(LIBCXX_PATCHED_OBJS) $(LIBCXX_PORT_OBJS) $(LIBCXX_UPSTREAM_OBJS))
 LCPP_LIBCXX_EXPORT_OBJS := $(if $(LCPP_LIBCXX_EXPORTS),libcxx_exports.o)
-
-# 没写 $(MODULE_NAME)-y 时按模块目录里的源文件推导，和 kbuild 的默认体验一致
-$(MODULE_NAME)-y ?= $(patsubst %.cpp,%.o,$(notdir $(wildcard $(M)/*.cpp))) \
-	$(patsubst %.c,%.o,$(notdir $(wildcard $(M)/*.c)))
 
 # 用户对象是 $(MODULE_NAME)-y 里除核心/生成对象之外的部分
 LCPP_CORE_OBJS := lcpp_ctors_start.o layout_check.o $(LCPP_ENTRY_OBJ) \
@@ -77,13 +85,14 @@ LIBCXX_PORT_SRC := $(LINUXCPP)/libcxx_port/src
 # 这里只打开单独的“保留 C++17 已移除接口”开关。
 # 用递归展开：cxxflags.mk 在下面才 include，立即展开会拿到空的 LCPP_CXXFLAGS
 LCPP_LIBCXX_CXXFLAGS = $(LCPP_CXXFLAGS) -D_LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS
+# 只按显式对象列表找源文件；没写进 <模块名>-y 的 .cpp/.c 不参与构建
 USER_CXX_OBJS := $(addprefix $(M)/, \
-	$(filter $(patsubst %.cpp,%.o,$(notdir $(wildcard $(M)/*.cpp))),$(LCPP_USER_OBJS)))
+	$(foreach obj,$(LCPP_USER_OBJS),\
+		$(if $(wildcard $(M)/$(obj:.o=.cpp)),$(obj))))
 CXX_OBJS := $(CORE_CXX_OBJS) $(LIBCXX_CXX_OBJS) $(USER_CXX_OBJS)
-GENERATED_C := entry_gen.c layout_check.c thunks_gen.c linuxcpp_thunks.c \
-	libc_port.c lcpp_ctors.c lcpp_ctors_start.c lcpp_ctors_end.c libcxx_exports.c
-USER_C_SOURCES := $(filter-out $(GENERATED_C),$(notdir $(wildcard $(M)/*.c)))
-USER_SOURCES := $(USER_C_SOURCES) $(notdir $(wildcard $(M)/*.cpp))
+USER_C_SOURCES := $(foreach obj,$(LCPP_USER_OBJS),\
+	$(if $(wildcard $(M)/$(obj:.o=.c)),$(obj:.o=.c)))
+USER_SOURCES := $(LCPP_USER_OBJS)
 PREPARE_DEPS := $(shell find $(LINUXCPP)/python -type f ! -path '*/__pycache__/*' ! -name '*.pyc') \
 	$(SRC_DIR)/linuxcpp_thunks.c $(LINUXCPP)/libc_port/src/libc_port.c \
 	$(LINUXCPP)/Makefile $(M)/Makefile

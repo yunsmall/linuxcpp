@@ -1,0 +1,7 @@
+[module]
+name = "sensor_bus"
+description = "C++ OOP sensor bus: abstract interfaces, virtual callbacks, sysfs and misc device"
+license = "GPL"
+
+[bindings]
+preset = "device_model"

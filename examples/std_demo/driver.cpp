@@ -30,9 +30,9 @@
 #include <variant>
 #include <vector>
 
-using linuxcpp::iov_iter;
-using linuxcpp::kiocb;
-using linuxcpp::ssize_t;
+using linuxcpp::abi::iov_iter;
+using linuxcpp::abi::kiocb;
+using linuxcpp::abi::ssize_t;
 
 namespace {
 
@@ -46,9 +46,9 @@ ssize_t demo_read(kiocb *iocb, iov_iter *to)
 	if (pos >= length)
 		return 0;
 	ssize_t n = static_cast<ssize_t>(
-		linuxcpp::lc_copy_to_iter(g_message.data() + pos, length - pos, to));
+		linuxcpp::abi::lc_copy_to_iter(g_message.data() + pos, length - pos, to));
 	if (n == 0 && to->count != 0)
-		return -linuxcpp::EFAULT;
+		return -linuxcpp::abi::EFAULT;
 	iocb->ki_pos += n;
 	return n;
 }
@@ -57,21 +57,21 @@ ssize_t demo_write(kiocb *iocb, iov_iter *from)
 {
 	char buffer[64];
 	ssize_t n = static_cast<ssize_t>(
-		linuxcpp::lc_copy_from_iter(buffer, sizeof(buffer) - 1, from));
+		linuxcpp::abi::lc_copy_from_iter(buffer, sizeof(buffer) - 1, from));
 	buffer[n < 0 ? 0 : n] = '\0';
 	iocb->ki_pos += n;
 	g_message = buffer;
 	return n;
 }
 
-const linuxcpp::file_operations demo_fops = {
+const linuxcpp::abi::file_operations demo_fops = {
 	.owner = linuxcpp::this_module(),
 	.read_iter = demo_read,
 	.write_iter = demo_write,
 };
 
-linuxcpp::miscdevice demo_misc = {
-	.minor = linuxcpp::MISC_DYNAMIC_MINOR,
+linuxcpp::abi::miscdevice demo_misc = {
+	.minor = linuxcpp::abi::MISC_DYNAMIC_MINOR,
 	.name = LCPP_DEVICE_NAME,
 	.fops = &demo_fops,
 	.mode = LCPP_DEVICE_MODE,
@@ -198,13 +198,13 @@ int demo_init(void)
 	g_message = std::move(text);
 
 	linuxcpp::printk("%s", g_message.c_str());
-	return linuxcpp::misc_register(&demo_misc);
+	return linuxcpp::abi::misc_register(&demo_misc);
 }
 
 void demo_exit(void)
 {
 	linuxcpp::printk("std_demo: exit\n");
-	linuxcpp::misc_deregister(&demo_misc);
+	linuxcpp::abi::misc_deregister(&demo_misc);
 }
 
 }  // namespace

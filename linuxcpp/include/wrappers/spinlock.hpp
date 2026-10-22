@@ -9,7 +9,7 @@ namespace linuxcpp {
 namespace wrappers {
 
 // spin_lock_init 是宏，由 linuxcpp_thunks.c 手写提供
-extern "C" void lc_spin_lock_init(linuxcpp::spinlock_t *lock);
+extern "C" void lc_spin_lock_init(linuxcpp::abi::spinlock_t *lock);
 
 class spinlock {
 public:
@@ -22,7 +22,7 @@ public:
 	void unlock() { lc_spin_unlock(&lock_); }
 
 private:
-	linuxcpp::spinlock_t lock_;
+	linuxcpp::abi::spinlock_t lock_;
 };
 
 class spin_guard {

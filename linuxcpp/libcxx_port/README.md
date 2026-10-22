@@ -9,7 +9,7 @@ libc++ 不随仓库分发。LLVM 现在只有 llvm-project 单一仓库，作为
 
 ## 对上游的修改
 
-1. `include/errno.h`：定义 `_LIBCPP_ERRNO_DEFINED_BY_PORT` 时跳过它给缺失 errno 补宏的代码。内核移植用 enum 提供错误码，否则 `linuxcpp::EFAULT` 这类标识符会被宏替换。
+1. `include/errno.h`：定义 `_LIBCPP_ERRNO_DEFINED_BY_PORT` 时跳过它给缺失 errno 补宏的代码。内核移植用 enum 提供错误码，否则 `linuxcpp::abi::EFAULT` 这类标识符会被宏替换。
 2. `include/__hash_table`：去掉 `max_load_factor()` 相关的浮点乘法/除法，桶数按负载因子 1.0 计算，`reserve` 直接使用请求的桶数。自定义 `max_load_factor` 在内核里不生效，但容器仍然正确。
 3. 浮点入口不在下载目录：`linuxcpp/libcxx_port/src/string.cpp` 和 `algorithm.cpp` 是从上游复制后去掉 `stof/stod/stold`、浮点 `to_string` 和 float/double/long double 的 `__sort` 实例化。内核不保存 FPU/SSE 状态，`-mno-sse -mno-80387` 下不能生成浮点代码。
 

@@ -11,7 +11,7 @@
 
 产出：
   generated/bindings.h      C 版本，类型加 lc_ 前缀，用于布局校验
-  generated/bindings.hpp    C++ 版本，位于 namespace linuxcpp
+  generated/bindings.hpp    C++ 版本，位于 namespace linuxcpp::abi
   layout_check.c            static_assert 对比生成类型与内核真实布局
 """
 
@@ -33,7 +33,8 @@ def parse_args():
                         help="layout_check.c 和 thunks_gen.c 的输出目录（通常是模块目录）")
     parser.add_argument("--root", action="append", dest="roots",
                         help="需要完整定义的类型，可多次指定")
-    parser.add_argument("--namespace", default="linuxcpp", help="C++ 命名空间")
+    parser.add_argument("--namespace", default="linuxcpp::abi",
+                        help="C++ 命名空间")
     parser.add_argument("--prefix", default="lc_", help="C 版类型前缀")
     parser.add_argument("--header", action="append", dest="headers",
                         help="解析函数声明用的内核头文件，默认一组常用头")

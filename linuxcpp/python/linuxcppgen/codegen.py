@@ -488,6 +488,15 @@ def generate(args):
         else:
             cpp_lines.append(types.gen_record(records[name], cpp_type_name,
                                               cpp_field_name, True))
+    # C++ 和 C 的空结构体大小不同；C++ 侧也要按 BTF 校验，否则 C 的
+    # layout_check 通过、C++ 镜像却可能把后续字段整体顶歪
+    for name in sorted(deps.want_records):
+        entry = named_layout.get(name)
+        if entry is None:
+            continue
+        cpp_lines.append(
+            f'static_assert(sizeof({cpp_type_name(name)}) == {entry["size"]}, '
+            f'"size {name}");')
     cpp_lines.append("")
     # C++ 侧约定不包含内核头；这些常量与内核宏同名，如果破坏约定就会
     # 被预处理器替换成 linuxcpp::1，所以约束是“不要 include 内核头”，不是改常量名
